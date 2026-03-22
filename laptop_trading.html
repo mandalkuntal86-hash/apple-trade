@@ -64,19 +64,27 @@ function fbListen(callback) {
 // Expose to global scope for main script
 window._fb = { fbSave, fbLoad, fbListen, firebaseReady };
 
-// Load data from Firestore on startup
-window.addEventListener('DOMContentLoaded', async () => {
-  // Update fbStatus UI indicator
-  const fbStatusEl = document.getElementById('fbStatus');
+// ── Boot: run immediately (don't rely on DOMContentLoaded inside a module —
+//    it may already have fired by the time the module executes) ──
+(async () => {
+  const setStatus = (text, color) => {
+    // DOM may or may not be ready yet; try now and also queue for after load
+    const apply = () => {
+      const el = document.getElementById('fbStatus');
+      if (el) { el.textContent = text; if (color) el.style.color = color; }
+    };
+    if (document.readyState !== 'loading') apply();
+    else document.addEventListener('DOMContentLoaded', apply, {once: true});
+  };
 
   if (!firebaseReady) {
-    if (fbStatusEl) fbStatusEl.textContent = '⚠ Offline mode';
+    setStatus('⚠ Offline mode', '#d97706');
     window._fbReady = false;
     window.dispatchEvent(new Event('fbDataReady'));
     return;
   }
 
-  if (fbStatusEl) fbStatusEl.textContent = '⏳ Connecting...';
+  setStatus('⏳ Connecting...', '#9ca3af');
 
   try {
     const fbData = await fbLoad();
@@ -84,17 +92,15 @@ window.addEventListener('DOMContentLoaded', async () => {
       window._fbInitialData = fbData;
       console.log("✅ Data loaded from Firestore");
     }
-    if (fbStatusEl) { fbStatusEl.textContent = '🟢 Cloud sync ON'; fbStatusEl.style.color = '#059669'; }
+    setStatus('🟢 Cloud sync ON', '#059669');
   } catch(e) {
     console.warn("Firebase load failed:", e.message);
-    if (fbStatusEl) { fbStatusEl.textContent = '⚠ Sync failed'; fbStatusEl.style.color = '#d97706'; }
+    setStatus('⚠ Sync failed', '#d97706');
   }
 
-  // Show Firebase status in UI
   window._fbReady = firebaseReady;
-  // Signal main script that Firebase is ready
   window.dispatchEvent(new Event('fbDataReady'));
-});
+})();
 </script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
@@ -367,26 +373,136 @@ tr:hover td{background:#f9fafb;}
 </div>
 
 <script>
-// ═══════════════════════════════════════════════
-// STORE & HELPERS
-// ═══════════════════════════════════════════════
-// Wait for Firebase module to finish before initializing the app
-// This fixes the race condition where _fbInitialData was always undefined
-window.addEventListener('fbDataReady', function initApp() {
-  window.removeEventListener('fbDataReady', initApp);
-  _startApp();
-});
-// Fallback: if fbDataReady never fires (e.g. script load error), start after 4s
-setTimeout(() => { if(typeof store === 'undefined') _startApp(); }, 4000);
-
-function _startApp() {
-
+// ── Global auth state (available immediately for login button) ──
 const ADMIN = {id:'mandalkuntal',pass:'Buku@2016',name:'Kuntal Mandal',role:'admin'};
+let currentUser = null;
+let loginRole = 'admin';
+let _appReady = false;
+let _pendingUser = null; // user who logged in before _startApp finished
+
+function setRole(r){
+  loginRole = r;
+  document.querySelectorAll('.role-tab').forEach((b,i) =>
+    b.classList.toggle('active',(i===0&&r==='admin')||(i===1&&r==='employee')||(i===2&&r==='guest')));
+  const show = r !== 'guest';
+  document.getElementById('loginFieldId').style.display = show ? 'block' : 'none';
+  document.getElementById('loginFieldPw').style.display = show ? 'block' : 'none';
+}
+
+function doLogin(){
+  const id = document.getElementById('loginId').value.trim();
+  const pw = document.getElementById('loginPass').value;
+  const err = document.getElementById('loginErr');
+  err.style.display = 'none';
+
+  let user = null;
+  if(loginRole === 'guest'){
+    user = {id:'guest', name:'Guest', role:'guest'};
+  } else if(loginRole === 'admin'){
+    if(id === ADMIN.id && pw === ADMIN.pass)
+      user = {id:ADMIN.id, name:ADMIN.name, role:'admin'};
+    else { err.style.display = 'block'; return; }
+  } else {
+    // Employee — needs store; store only exists after _startApp runs
+    if(!_appReady){
+      // Show spinner and queue the credentials
+      _pendingUser = {id, pw, role:'employee'};
+      const btn = document.querySelector('.lbtn');
+      if(btn){ btn.textContent = '⏳ Connecting...'; btn.disabled = true; }
+      return;
+    }
+    // _appReady — store exists, check credentials now
+    const emp = _store().find(e => e.id === id && e.pass === pw);
+    if(emp) user = {id:emp.id, name:emp.name, role:'employee'};
+    else { err.style.display = 'block'; return; }
+  }
+
+  currentUser = user;
+  if(_appReady) _launchApp();
+  else _pendingUser = user; // guest/admin clicked before _startApp; will be launched by _startApp
+}
+
+function doLogout(){
+  currentUser = null; loginRole = 'admin';
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('loginId').value = '';
+  document.getElementById('loginPass').value = '';
+  document.getElementById('loginErr').style.display = 'none';
+  document.querySelectorAll('.role-tab').forEach((b,i) => b.classList.toggle('active', i===0));
+  document.getElementById('loginFieldId').style.display = 'block';
+  document.getElementById('loginFieldPw').style.display = 'block';
+  const banner = document.getElementById('guestBanner');
+  if(banner) banner.style.display = 'none';
+  const btn = document.querySelector('.lbtn');
+  if(btn){ btn.textContent = 'Sign In →'; btn.disabled = false; }
+}
+
+// Thin accessor — store is defined inside _startApp closure
+let _storeRef = null;
+function _store(){ return _storeRef ? _storeRef.employees : []; }
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('loginPass').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+});
+
+// ── Wait for Firebase before booting app logic ──
+window.addEventListener('fbDataReady', function once(){ window.removeEventListener('fbDataReady', once); _startApp(); });
+setTimeout(() => { if(!_appReady) _startApp(); }, 4000); // fallback
+
+// _launchApp is assigned from inside _startApp() so it can access
+// buildNav/showPage which live in that closure. This is a placeholder.
+function _launchApp(){
+  // If _startApp hasn't wired up the real launcher yet, queue and retry
+  if(window._realLaunchApp){ window._realLaunchApp(); return; }
+  setTimeout(_launchApp, 100); // wait for _startApp to finish
+}
+
+function _startApp(){
 
 // Load from Firestore if available, else localStorage
 let store = (window._fbInitialData) ||
             JSON.parse(localStorage.getItem('ltpStore')||'null') ||
             {employees:[],items:[],trades:[],tradeCounter:0};
+_storeRef = store; // expose employees list to doLogin()
+_appReady = true;
+
+// Wire up the real launcher now that buildNav/showPage are in scope
+window._realLaunchApp = function(){
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('sbUser').textContent = currentUser.name;
+  document.getElementById('sbRole').textContent =
+    currentUser.role==='admin' ? 'Administrator' :
+    currentUser.role==='employee' ? 'Employee' : 'View Only';
+  buildNav(); showPage('dashboard');
+  const banner = document.getElementById('guestBanner');
+  if(banner) banner.style.display = currentUser.role==='guest' ? 'flex' : 'none';
+  const fbSt = document.getElementById('fbStatus');
+  if(fbSt){
+    if(window._fbReady){ fbSt.textContent='🟢 Cloud sync ON'; fbSt.style.color='#059669'; }
+    else { fbSt.textContent='💾 Local only'; fbSt.style.color='#d97706'; }
+  }
+};
+
+// If someone logged in while we were loading, finish their login now
+if(_pendingUser){
+  const p = _pendingUser; _pendingUser = null;
+  if(p.role === 'employee'){
+    const emp = store.employees.find(e=>e.id===p.id&&e.pass===p.pw);
+    if(emp){ currentUser={id:emp.id,name:emp.name,role:'employee'}; }
+    else {
+      document.getElementById('loginErr').style.display='block';
+      const btn=document.querySelector('.lbtn');
+      if(btn){btn.textContent='Sign In →';btn.disabled=false;}
+      return;
+    }
+  } else {
+    currentUser = p;
+  }
+}
+// Always launch if we have a user (covers guest/admin who clicked early too)
+if(currentUser){ _launchApp(); return; }
 
 function save(){
   // Always save to localStorage (offline backup)
@@ -435,70 +551,7 @@ function getStatusBadge(trade){
 }
 function showAlert(id,msg,type='ok'){ const a=document.getElementById(id); if(!a)return; a.className='alert alert-'+type; a.textContent=msg; a.style.display='block'; setTimeout(()=>a.style.display='none',4000); }
 
-// ═══════════════════════════════════════════════
-// AUTH
-// ═══════════════════════════════════════════════
-let currentUser=null, loginRole='admin';
-function setRole(r){
-  loginRole=r;
-  document.querySelectorAll('.role-tab').forEach((b,i)=>b.classList.toggle('active',(i===0&&r==='admin')||(i===1&&r==='employee')||(i===2&&r==='guest')));
-  const needsCreds = r!=='guest';
-  document.getElementById('loginFieldId').style.display = needsCreds?'block':'none';
-  document.getElementById('loginFieldPw').style.display = needsCreds?'block':'none';
-}
-function doLogin(){
-  const id=document.getElementById('loginId').value.trim();
-  const pw=document.getElementById('loginPass').value;
-  const err=document.getElementById('loginErr'); err.style.display='none';
-  if(loginRole==='guest'){
-    currentUser={id:'guest',name:'Guest',role:'guest'}; startApp(); return;
-  }
-  if(loginRole==='admin'){
-    if(id===ADMIN.id&&pw===ADMIN.pass){currentUser={id:ADMIN.id,name:ADMIN.name,role:'admin'};startApp();}
-    else err.style.display='block';
-  } else {
-    const emp=store.employees.find(e=>e.id===id&&e.pass===pw);
-    if(emp){currentUser={id:emp.id,name:emp.name,role:'employee'};startApp();}
-    else err.style.display='block';
-  }
-}
-function doLogout(){
-  currentUser=null;
-  loginRole='admin';
-  document.getElementById('app').style.display='none';
-  document.getElementById('loginScreen').style.display='flex';
-  document.getElementById('loginId').value='';
-  document.getElementById('loginPass').value='';
-  document.getElementById('loginErr').style.display='none';
-  // Reset role tabs to admin
-  document.querySelectorAll('.role-tab').forEach((b,i)=>b.classList.toggle('active',i===0));
-  // Show login fields
-  document.getElementById('loginFieldId').style.display='block';
-  document.getElementById('loginFieldPw').style.display='block';
-  // Hide guest banner
-  const banner=document.getElementById('guestBanner');
-  if(banner) banner.style.display='none';
-}
-function startApp(){
-  document.getElementById('loginScreen').style.display='none';
-  document.getElementById('app').style.display='block';
-  document.getElementById('sbUser').textContent=currentUser.name;
-  document.getElementById('sbRole').textContent=currentUser.role==='admin'?'Administrator':currentUser.role==='employee'?'Employee':'View Only';
-  buildNav(); showPage('dashboard');
-  const banner=document.getElementById('guestBanner');
-  if(banner) banner.style.display=currentUser.role==='guest'?'flex':'none';
-  // Show Firebase connection status
-  const fbSt=document.getElementById('fbStatus');
-  if(fbSt){
-    if(window._fbReady){
-      fbSt.innerHTML='🔥 Firebase Connected';
-      fbSt.style.color='#059669';
-    } else {
-      fbSt.innerHTML='💾 Local Storage Only';
-      fbSt.style.color='#d97706';
-    }
-  }
-}
+// ── (auth handled globally above) ──
 document.getElementById('loginPass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
 
 // ═══════════════════════════════════════════════
@@ -1721,6 +1774,41 @@ function searchTradeNo(){
   if(it){ document.getElementById('sbTradeSearch').value=''; showPage('tradeView',it.id); }
   else alert('No trade found for: '+q);
 }
+
+// ── Expose all onclick-called functions to global window scope ──
+window.showPage = showPage;
+window.closeModal = closeModal;
+window.handleOverlay = handleOverlay;
+window.buildNav = buildNav;
+window.setNav = setNav;
+window.pgDashboardFilter = pgDashboardFilter;
+window.filterTrades = filterTrades;
+window.filterEmp = filterEmp;
+window.clearDates = clearDates;
+window.addItem = addItem;
+window.openEditItem = openEditItem;
+window.saveEditItem = saveEditItem;
+window.openDelItem = openDelItem;
+window.confirmDelItem = confirmDelItem;
+window.assignTrade = assignTrade;
+window.openEditAssign = openEditAssign;
+window.saveEditAssign = saveEditAssign;
+window.openDelAssign = openDelAssign;
+window.confirmDelAssign = confirmDelAssign;
+window.recordAmount = recordAmount;
+window.openEditAmt = openEditAmt;
+window.saveEditAmt = saveEditAmt;
+window.openDelTrade = openDelTrade;
+window.confirmDelTrade = confirmDelTrade;
+window.addEmployee = addEmployee;
+window.deleteEmployee = deleteEmployee;
+window.exportData = exportData;
+window.clearAllData = clearAllData;
+window.searchTradeNo = searchTradeNo;
+window.onS3TradeSelect = onS3TradeSelect;
+window.onS2TradeSelect = onS2TradeSelect;
+window.importData = importData;
+window.setDateFilter = setDateFilter;
 
 } // end _startApp()
 </script>
