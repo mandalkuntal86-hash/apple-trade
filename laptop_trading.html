@@ -323,8 +323,9 @@ tr:hover td{background:#f9fafb;}
 .back-btn{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:#1a56db;cursor:pointer;background:none;border:none;font-family:'Inter',sans-serif;margin-bottom:16px;padding:0;}
 .back-btn:hover{text-decoration:underline;}
 
-/* ── MOBILE HAMBURGER BUTTON ── */
+/* ── MOBILE TOPBAR — hidden always, shown via JS class after login ── */
 .mob-topbar{display:none;position:fixed;top:0;left:0;right:0;height:54px;background:#fff;border-bottom:1px solid #e2e5ea;z-index:59;align-items:center;padding:0 16px;gap:12px;}
+.mob-topbar.visible{display:flex;}
 .mob-menu-btn{background:none;border:none;cursor:pointer;padding:6px;display:flex;flex-direction:column;gap:5px;flex-shrink:0;}
 .mob-menu-btn span{display:block;width:22px;height:2px;background:#1a1d23;border-radius:2px;transition:all .2s;}
 .mob-brand{font-size:16px;font-weight:700;color:#1a1d23;flex:1;}
@@ -334,76 +335,74 @@ tr:hover td{background:#f9fafb;}
 .sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:55;}
 .sidebar-overlay.open{display:block;}
 
-@media(max-width:768px){
-  /* show mobile topbar */
-  .mob-topbar{display:flex;}
+/* ── GUEST BANNER fix ── */
+#guestBanner{left:220px;right:0;}
 
-  /* sidebar slides in from left */
-  .sidebar{transform:translateX(-100%);transition:transform .25s ease;z-index:56;width:240px;}
+@media(max-width:768px){
+  /* sidebar hidden off-screen, slides in */
+  .sidebar{transform:translateX(-100%);transition:transform .25s ease;z-index:57;width:260px;}
   .sidebar.open{transform:translateX(0);}
 
-  /* main content fills full width, padded below topbar */
-  .main{margin-left:0 !important;padding:62px 14px 90px !important;min-height:100vh;width:100%;}
+  /* main fills full width below topbar */
+  .main{margin-left:0 !important;padding:66px 14px 30px 14px !important;min-height:100vh;width:100%;box-sizing:border-box;}
 
-  /* stat cards: 2 per row */
+  /* guest banner full width on mobile */
+  #guestBanner{left:0 !important;right:0 !important;}
+
+  /* stat cards 2-per-row */
   .stat-row{flex-wrap:wrap;gap:10px;}
   .scard{min-width:calc(50% - 5px);padding:14px 16px;}
-  .scard-val{font-size:24px;}
+  .scard-val{font-size:22px;}
 
-  /* tables: card-style rows on mobile */
+  /* table → card layout */
   .tbl-wrap table thead{display:none;}
-  .tbl-wrap table,
-  .tbl-wrap tbody,
-  .tbl-wrap tr{display:block;width:100%;}
+  .tbl-wrap table,.tbl-wrap tbody,.tbl-wrap tr{display:block;width:100%;}
   .tbl-wrap tr{background:#fff;border:1px solid #e2e5ea;border-radius:10px;margin-bottom:10px;padding:12px 14px;}
-  .tbl-wrap td{display:flex;justify-content:space-between;align-items:flex-start;padding:5px 0;border:none;font-size:13px;gap:8px;}
-  .tbl-wrap td::before{content:attr(data-label);font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;flex-shrink:0;padding-top:2px;min-width:80px;}
+  .tbl-wrap td{display:flex;justify-content:space-between;align-items:flex-start;padding:5px 0;border:none;font-size:13px;gap:8px;flex-wrap:wrap;}
+  .tbl-wrap td::before{content:attr(data-label);font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;flex-shrink:0;min-width:72px;}
   .tbl-wrap td:last-child{padding-top:10px;border-top:1px solid #f1f3f5;margin-top:4px;}
   .tbl-wrap tr:hover td{background:transparent;}
   .no-data{padding:32px;}
 
-  /* date filter bar */
+  /* date bar */
   .date-bar{flex-wrap:wrap;gap:6px;padding:10px 14px;}
   .date-bar input[type=date]{font-size:12px;}
   .showing{margin-left:0;width:100%;}
 
-  /* filter tabs wrap */
+  /* filter tabs */
   .filter-tabs{flex-wrap:wrap;}
   .ftab{font-size:11px;padding:5px 10px;}
 
-  /* tpanel head stacks */
+  /* panel header stacks */
   .tpanel-head{flex-direction:column;align-items:flex-start;gap:8px;padding:12px 14px;}
 
-  /* form grid single col */
+  /* single col forms */
   .fgrid{grid-template-columns:1fr;}
   .fgroup.full{grid-column:1;}
   .fpanel{padding:16px 14px;}
 
-  /* steps bar scrollable */
+  /* steps bar */
   .steps-bar{overflow-x:auto;-webkit-overflow-scrolling:touch;}
-  .step-item{min-width:130px;padding:12px;}
+  .step-item{min-width:120px;padding:10px 12px;}
 
-  /* preview grid single col */
+  /* preview grid */
   .pgrid{grid-template-columns:1fr 1fr;}
 
-  /* modal full-width */
-  .modal{width:95vw;padding:20px 16px;max-height:90vh;overflow-y:auto;}
+  /* modal */
+  .modal{width:96vw;padding:18px 14px;max-height:88vh;overflow-y:auto;}
 
-  /* login card */
-  .login-card{padding:28px 20px;}
+  /* login */
+  .login-card{padding:28px 18px;}
 
-  /* topbar */
+  /* page topbar */
   .topbar{flex-wrap:wrap;gap:8px;}
-  .page-title{font-size:17px;}
-  .btn-new{font-size:12px;padding:8px 14px;}
+  .page-title{font-size:16px;}
+  .btn-new{font-size:12px;padding:7px 12px;}
 
-  /* guest banner */
-  #guestBanner{left:0 !important;}
-
-  /* employee grid */
+  /* emp grid */
   .emp-grid{grid-template-columns:1fr 1fr;}
 
-  /* actions buttons smaller */
+  /* action buttons */
   .acts{flex-wrap:wrap;}
   .btn-step,.btn-step2,.btn-step3,.btn-edit{font-size:11px;padding:5px 10px;}
 }
@@ -412,6 +411,7 @@ tr:hover td{background:#f9fafb;}
   .scard{min-width:100%;}
   .emp-grid{grid-template-columns:1fr;}
   .pgrid{grid-template-columns:1fr;}
+  .main{padding:62px 10px 20px 10px !important;}
 }
 </style>
 </head>
@@ -477,7 +477,7 @@ tr:hover td{background:#f9fafb;}
       </div>
     </aside>
     <main class="main" id="mainContent"></main>
-    <div id="guestBanner" style="display:none;position:fixed;bottom:0;left:220px;right:0;background:#1a1d23;color:#fff;padding:10px 24px;font-size:12px;font-weight:600;z-index:100;align-items:center;gap:8px">
+    <div id="guestBanner" style="display:none;position:fixed;bottom:0;left:220px;right:0;background:#1a1d23;color:#fff;padding:10px 24px;font-size:12px;font-weight:600;z-index:100;align-items:center;gap:8px" class="guest-banner">
       <span style="background:#d97706;border-radius:4px;padding:2px 8px;font-size:11px">VIEW ONLY</span>
       You are logged in as Guest. Edit and Delete actions are disabled. 
       <button onclick="doLogout()" style="margin-left:auto;background:#fff;color:#1a1d23;border:none;border-radius:6px;padding:4px 12px;cursor:pointer;font-weight:700;font-family:'Inter',sans-serif;font-size:12px">Login to Edit →</button>
@@ -600,27 +600,25 @@ function doLogin(){
 }
 function doLogout(){
   currentUser=null;
-  loginRole='admin';
+  // Hide app, show login
   document.getElementById('app').style.display='none';
   document.getElementById('loginScreen').style.display='flex';
-  // Hide mobile topbar on logout
+  // Hide mobile topbar
   const mob=document.getElementById('mobTopbar');
-  if(mob) mob.style.display='none';
+  if(mob) mob.classList.remove('visible');
+  // Close sidebar drawer
   const sb=document.querySelector('.sidebar');
   const ov=document.getElementById('sidebarOverlay');
   if(sb) sb.classList.remove('open');
   if(ov) ov.classList.remove('open');
-  document.getElementById('loginId').value='';
-  document.getElementById('loginPass').value='';
-  document.getElementById('loginErr').style.display='none';
-  // Reset role tabs to admin
-  document.querySelectorAll('.role-tab').forEach((b,i)=>b.classList.toggle('active',i===0));
-  // Show login fields
-  document.getElementById('loginFieldId').style.display='block';
-  document.getElementById('loginFieldPw').style.display='block';
   // Hide guest banner
   const banner=document.getElementById('guestBanner');
   if(banner) banner.style.display='none';
+  // Reset login form fully via setRole
+  document.getElementById('loginId').value='';
+  document.getElementById('loginPass').value='';
+  document.getElementById('loginErr').style.display='none';
+  setRole('admin');
 }
 function startApp(){
   document.getElementById('loginScreen').style.display='none';
@@ -675,20 +673,22 @@ document.addEventListener('click', e=>{
 function handleMobTopbar(){
   const mob = document.getElementById('mobTopbar');
   if(!mob) return;
-  // Only show mobile topbar when app is visible (after login)
   const appVisible = document.getElementById('app').style.display !== 'none';
-  if(window.innerWidth<=768 && appVisible){
-    mob.style.display='flex';
+  const isMobile = window.innerWidth <= 768;
+  if(isMobile && appVisible){
+    mob.classList.add('visible');
   } else {
-    mob.style.display='none';
-    const sb = document.querySelector('.sidebar');
-    const ov = document.getElementById('sidebarOverlay');
-    if(sb) sb.classList.remove('open');
-    if(ov) ov.classList.remove('open');
+    mob.classList.remove('visible');
+    if(!isMobile){
+      const sb = document.querySelector('.sidebar');
+      const ov = document.getElementById('sidebarOverlay');
+      if(sb) sb.classList.remove('open');
+      if(ov) ov.classList.remove('open');
+    }
   }
 }
 window.addEventListener('resize', handleMobTopbar);
-// Don't call handleMobTopbar() on load — app is hidden until login
+// NOT called on page load — mob topbar stays hidden until after login
 
 // ═══════════════════════════════════════════════
 // SETTINGS PAGE — Firebase & GitHub Guide
