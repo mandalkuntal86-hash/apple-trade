@@ -304,68 +304,110 @@ tr:hover td{background:#f9fafb;}
 
 /* ── MOBILE (≤640px) ── */
 @media(max-width:640px){
-  /* Sidebar → sticky top bar */
+
+  /* Make shell vertical instead of horizontal flex */
+  .shell{flex-direction:column; min-height:100vh;}
+
+  /* Sidebar becomes a sticky top bar */
   .sidebar{
-    width:100%; height:auto; position:sticky; top:0; left:0; right:0;
-    flex-direction:column; border-right:none;
-    border-bottom:2px solid #e2e5ea; z-index:50; padding:0;
+    width:100% !important;
+    height:auto !important;
+    position:sticky !important;
+    top:0; left:0; right:0;
+    flex-direction:column !important;
+    border-right:none !important;
+    border-bottom:2px solid #e2e5ea;
+    z-index:50;
     background:#fff;
   }
-  /* Row 1: brand + user */
+
+  /* Row 1: brand + user side by side */
   .sb-top-row{display:flex; align-items:center; width:100%;}
-  .sb-brand{padding:10px 14px; border-bottom:none; flex:1; min-width:0;}
+  .sb-brand{padding:10px 14px; border-bottom:none !important; flex:1; min-width:0;}
   .sb-name{font-size:14px;}
   .sb-user{
-    padding:10px 14px; border-bottom:none;
-    border-left:1px solid #e2e5ea; white-space:nowrap;
+    padding:10px 14px;
+    border-bottom:none !important;
+    border-left:1px solid #e2e5ea;
+    white-space:nowrap;
   }
   .sb-uname{font-size:12px;} .sb-urole{font-size:10px;}
 
   /* Row 2: nav pills — horizontal scroll */
   .sb-nav{
-    flex-direction:row; flex-wrap:nowrap; overflow-x:auto;
-    width:100%; padding:8px 10px; border-top:1px solid #e2e5ea;
-    gap:6px; flex:none; display:flex;
-    -webkit-overflow-scrolling:touch; scrollbar-width:none;
+    flex-direction:row !important;
+    flex-wrap:nowrap !important;
+    overflow-x:auto !important;
+    overflow-y:hidden;
+    width:100%;
+    padding:8px 10px;
+    border-top:1px solid #e2e5ea;
+    gap:6px;
+    display:flex !important;
+    -webkit-overflow-scrolling:touch;
+    scrollbar-width:none;
   }
   .sb-nav::-webkit-scrollbar{display:none;}
   .nav-item{
-    white-space:nowrap; padding:7px 14px; font-size:12px;
-    flex-shrink:0; border-radius:20px; display:inline-flex;
+    white-space:nowrap !important;
+    padding:7px 14px !important;
+    font-size:12px !important;
+    flex-shrink:0 !important;
+    border-radius:20px !important;
+    display:inline-flex !important;
+    width:auto !important;
   }
-  .nav-section{display:none;}
+  .nav-section{display:none !important;}
 
   /* Row 3: search + sign out */
   .sb-footer{
-    width:100%; border-top:1px solid #e2e5ea; padding:7px 10px;
-    display:flex; flex-direction:row; align-items:center; gap:8px;
+    width:100%;
+    border-top:1px solid #e2e5ea;
+    padding:7px 10px;
+    display:flex !important;
+    flex-direction:row !important;
+    align-items:center;
+    gap:8px;
     background:#fff;
   }
   .sb-search{flex:1;}
   .sb-search-input{width:100%; font-size:12px; padding:7px 10px;}
-  .sb-logout{width:auto; padding:7px 14px; font-size:12px; white-space:nowrap;}
+  .sb-logout{width:auto !important; padding:7px 14px; font-size:12px; white-space:nowrap;}
 
-  /* Main content — no left margin, full width */
+  /* Main: no left margin, full width, natural flow */
   .main{
     margin-left:0 !important;
-    padding:16px 12px 100px 12px;
-    width:100%; box-sizing:border-box; overflow-x:hidden;
+    padding:16px 12px 100px 12px !important;
+    width:100% !important;
+    box-sizing:border-box;
+    overflow-x:hidden;
+    flex:1;
   }
 
-  /* Stat cards: 2×2 grid, full row width */
-  .stat-row{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px;}
-  .scard{min-width:0; padding:14px 12px; width:100%; box-sizing:border-box;}
+  /* Stat cards: 2-column grid */
+  .stat-row{
+    display:grid !important;
+    grid-template-columns:1fr 1fr !important;
+    gap:10px;
+    margin-bottom:16px;
+  }
+  .scard{
+    min-width:0 !important;
+    width:100% !important;
+    padding:14px 12px;
+    box-sizing:border-box;
+  }
   .scard-val{font-size:22px;}
   .scard-label{font-size:10px;}
 
-  /* Tables: full-width horizontal scroll container */
+  /* Tables */
   .tpanel{overflow:hidden; margin-bottom:16px;}
   .tbl-wrap{overflow-x:auto; -webkit-overflow-scrolling:touch; width:100%;}
-  table{min-width:480px; width:100%;}
+  table{min-width:480px;}
   th,td{padding:9px 10px; font-size:12px;}
 
   /* Forms */
-  .fgrid{grid-template-columns:1fr;}
+  .fgrid{grid-template-columns:1fr !important;}
   .fpanel{padding:14px; margin-bottom:14px;}
 
   /* Steps bar */
@@ -373,40 +415,44 @@ tr:hover td{background:#f9fafb;}
   .step-item{border-right:none; border-bottom:1px solid #e2e5ea;}
   .step-item:last-child{border-bottom:none;}
 
-  /* Page title */
+  /* Topbar */
   .page-title{font-size:17px;}
   .topbar{flex-wrap:wrap; gap:8px; margin-bottom:14px;}
 
   /* Modal */
   .modal{padding:18px; width:96vw; max-height:90vh; overflow-y:auto;}
 
-  /* Guest banner — fixed at bottom, full width */
+  /* Guest banner */
   #guestBanner{
-    left:0 !important; right:0; padding:10px 14px; font-size:12px;
-    flex-wrap:wrap; gap:6px; z-index:99;
+    left:0 !important;
+    right:0;
+    padding:10px 14px;
+    font-size:12px;
+    flex-wrap:wrap;
+    gap:6px;
   }
 
-  /* Detail panels */
+  /* Detail grids */
   .view-row{gap:12px; flex-direction:column;}
   .pgrid{grid-template-columns:1fr 1fr !important;}
 
   /* Employee grid */
   .emp-grid{grid-template-columns:1fr 1fr;}
 
-  /* Filter/date bars */
+  /* Filters */
   .filter-tabs{flex-wrap:wrap; gap:6px;}
   .date-bar{flex-wrap:wrap; gap:8px; padding:10px 12px;}
-  .tpanel-head{padding:12px 14px;}
+  .tpanel-head{padding:12px 14px; flex-wrap:wrap; gap:8px;}
 
-  /* Prevent any element from overflowing screen */
-  .shell{overflow-x:hidden;}
+  /* Prevent overflow */
+  body{overflow-x:hidden;}
 }
 
 /* ── Very small phones (≤380px) ── */
 @media(max-width:380px){
-  .scard{min-width:100%;}
+  .scard{min-width:100% !important; grid-column:1/-1;}
+  .stat-row{grid-template-columns:1fr !important;}
   .emp-grid{grid-template-columns:1fr;}
-  .main{padding-top:160px;}
 }
 </style>
 </head>
