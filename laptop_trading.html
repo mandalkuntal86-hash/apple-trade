@@ -1228,7 +1228,7 @@ function pgTradeView(itemId){
       </div>
       <div class="page-sub">Complete trade history for this item</div>
     </div>
-    ${canEdit()?`<button class="btn-new" onclick="openEditItem('${it.id}')">✎ Edit Item</button>`:''}
+    ${isAdmin()?`<button class="btn-new" onclick="openEditItem('${it.id}')">✎ Edit Item</button>`:''}
   </div>
 
   <!-- SUMMARY CARDS -->
@@ -1255,7 +1255,7 @@ function pgTradeView(itemId){
       <div class="view-panel">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
           <div style="font-size:13px;font-weight:700;color:#059669;text-transform:uppercase;letter-spacing:.6px">✓ Step 1 — Item Details</div>
-          ${canEdit()?`<button class="btn-edit" onclick="openEditItem('${it.id}')">✎ Edit</button>`:''}
+          ${isAdmin()?`<button class="btn-edit" onclick="openEditItem('${it.id}')">✎ Edit</button>`:''}
         </div>
         <div class="view-row">
           <div class="view-field"><div class="vfkey">Trade No.</div><div class="vfval" style="color:#1a56db">${it.tradeNo}</div></div>
@@ -1302,7 +1302,7 @@ function pgTradeView(itemId){
       <div class="view-panel" style="border-left:3px solid ${step3Done?'#059669':'#e2e5ea'}">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
           <div style="font-size:13px;font-weight:700;color:${step3Done?'#059669':'#9ca3af'};text-transform:uppercase;letter-spacing:.6px">${step3Done?'✓ ':''} Step 3 — Amount Received</div>
-          ${canEdit()&&step3Done?`<button class="btn-edit" onclick="openEditAmt('${trade.id}')">✎ Edit</button>`:''}
+          ${canEdit()?`<button class="btn-edit" onclick="openEditAmt('${trade.id}')">✎ Edit</button>`:''}
         </div>
         ${step3Done?`<div class="view-row">
           <div class="view-field"><div class="vfkey">Amount</div><div class="vfval" style="color:#059669;font-size:22px;font-weight:700">${fmtAmt(trade.amount)}</div></div>
@@ -1352,11 +1352,15 @@ function pgViewItem(tradeId){
 // STEP 1 — ADD ITEM
 // ═══════════════════════════════════════════════
 function pgStep1(){
-  const pending=store.items.filter(i=>i.status==='pending');
+  // Admin sees ALL items; employees/guests see only pending
   const isAdm=isAdmin(); const canAct=canEdit();
+  const items = isAdm ? store.items : store.items.filter(i=>i.status==='pending');
   const actTh=canAct?'<th>Edit</th><th>Delete</th>':'';
   let rows='';
-  pending.forEach(it=>{
+  items.forEach(it=>{
+    const statusBadge = it.status==='pending'?'<span class="badge-pending">Pending</span>'
+      :it.status==='assigned'?'<span class="badge-assigned">Assigned</span>'
+      :'<span class="badge-traded">Traded</span>';
     const actCells=canAct
       ?`<td><button class="btn-edit" onclick="openEditItem('${it.id}')">✎ Edit</button></td><td><button class="btn-del" onclick="openDelItem('${it.id}')">🗑</button></td>`
       :'';
@@ -1366,11 +1370,11 @@ function pgStep1(){
       <td>${it.brand}</td>
       <td>${it.model}</td>
       <td>${fmtDate(it.addedAt)}</td>
-      <td><span class="badge-pending">Pending</span></td>
+      <td>${statusBadge}</td>
       ${actCells}
     </tr>`;
   });
-  if(!rows) rows=`<tr><td colspan="${isAdm?8:6}" class="no-data">No pending items. Add one below.</td></tr>`;
+  if(!rows) rows=`<tr><td colspan="${isAdm?8:6}" class="no-data">No items found.</td></tr>`;
 
   return `
   <div class="topbar"><div><div class="page-title">Step 1 — Add Item</div><div class="page-sub">Register laptop with serial number</div></div></div>
@@ -1466,9 +1470,10 @@ function confirmDelItem(itemId){
 // Substeps: A) pick trade-no → B) confirm laptop details → C) pick employee → assign
 // ═══════════════════════════════════════════════
 function pgStep2(){
-  const pendingItems=store.items.filter(i=>i.status==='pending');
   const isAdm=isAdmin();
-  const tradeNoOpts=pendingItems.map(i=>`<option value="${i.id}">${i.tradeNo} | ${i.brand} ${i.model} | SN: ${i.serial}</option>`).join('');
+  // Admin can assign/reassign any item; employees only see pending
+  const availableItems = isAdm ? store.items : store.items.filter(i=>i.status==='pending');
+  const tradeNoOpts=availableItems.map(i=>`<option value="${i.id}">${i.tradeNo} | ${i.brand} ${i.model} | SN: ${i.serial} [${i.status}]</option>`).join('');
   const empList=isAdm?store.employees:store.employees.filter(e=>e.id===currentUser.id);
   // Auto-select logged-in employee
   const autoEmpId=(!isAdm&&!isGuest())?currentUser.id:'';
@@ -1643,7 +1648,7 @@ function assignTrade(){if(isGuest()){alert('View Only mode — you cannot assign
   setTimeout(()=>showAlert('s2alert','✓ Status: Traded! Now go to Step 3 to record payment.'),50);
 }
 
-function openEditAssign(tradeId){if(!canEdit()){alert('Admin access required to edit or delete.');return;}
+function openEditAssign(tradeId){if(!isAdmin()){alert('Admin access required to edit or delete.');return;}
   const tr=store.trades.find(t=>t.id===tradeId); if(!tr)return;
   const tl=tr.tradedLaptop||{};
   const eOpts=store.employees.map(e=>`<option value="${e.id}"${e.id===tr.employeeId?' selected':''}>${e.name} (${e.id})</option>`).join('');
@@ -1675,7 +1680,7 @@ function saveEditAssign(tradeId){
   if(currentPage==='step2') showPage('step2');
   else showPage('tradeView', tr.itemId);
 }
-function openDelAssign(tradeId){if(!canEdit()){alert('Admin access required to edit or delete.');return;}
+function openDelAssign(tradeId){if(!isAdmin()){alert('Admin access required to edit or delete.');return;}
   const tr=store.trades.find(t=>t.id===tradeId); if(!tr)return;
   openModal('Remove Assignment','This will reset the item to Pending',
     `<p class="modal-warn-text">Remove assignment for <span class="highlight">${tr.serial}</span> assigned to <span class="highlight">${tr.employeeName}</span>?<span class="danger-note">⚠ Item will return to Pending status.</span></p>`,
@@ -1694,8 +1699,9 @@ function confirmDelAssign(tradeId){
 // Substeps: A) pick pending payment trade-no → B) auto-shows laptop+employee → C) enter amount
 // ═══════════════════════════════════════════════
 function pgStep3(){
-  const pendingTrades=store.trades.filter(t=>!t.amountRecorded);
   const isAdm=isAdmin();
+  // Admin sees ALL trades; others only see trades pending payment
+  const pendingTrades = isAdm ? store.trades : store.trades.filter(t=>!t.amountRecorded);
   // dropdown by trade number
   const tOpts=pendingTrades.map(t=>{
     const it=store.items.find(i=>i.id===t.itemId)||{};
@@ -1845,7 +1851,7 @@ function recordAmount(){if(isGuest()){alert('View Only mode — you cannot recor
   setTimeout(()=>showAlert('s3alert','✓ Status: Payment Received! Trade complete.'),50);
 }
 
-function openEditAmt(tradeId){if(!canEdit()){alert('Admin access required to edit or delete.');return;}
+function openEditAmt(tradeId){if(!isAdmin()){alert('Admin access required to edit or delete.');return;}
   const tr=store.trades.find(t=>t.id===tradeId); if(!tr)return;
   openModal('Edit Trade Amount','Step 3 · Admin Edit',
     `<div class="fgrid"><div class="fgroup full"><label class="flabel">Trading Amount (₹)</label><input class="finput" id="mAmt" type="number" value="${tr.amount||0}" min="0"></div></div>`,
@@ -1862,7 +1868,7 @@ function saveEditAmt(tradeId){
   if(currentPage==='step3') showPage('step3');
   else showPage('allTrades');
 }
-function openDelTrade(tradeId){if(!canEdit()){alert('Admin access required to edit or delete.');return;}
+function openDelTrade(tradeId){if(!isAdmin()){alert('Admin access required to edit or delete.');return;}
   const tr=store.trades.find(t=>t.id===tradeId); if(!tr)return;
   openModal('Delete Trade Record','This action cannot be undone',
     `<p class="modal-warn-text">Delete trade for <span class="highlight">${tr.serial}</span> (Amount: <span class="highlight">${fmtAmt(tr.amount)}</span>)?<span class="danger-note">⚠ Item will be reset to Pending status.</span></p>`,
