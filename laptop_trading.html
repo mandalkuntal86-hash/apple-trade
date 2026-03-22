@@ -5,12 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>LapTrade Pro — Laptop Trading System</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<!-- ═══ FIREBASE SDK (compat — global scope) ═══ -->
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-<script>
+<!-- ═══ FIREBASE SDK ═══ -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, collection, doc, setDoc, getDoc, onSnapshot, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
 // ╔══════════════════════════════════════════════════╗
-// ║  FIREBASE CONFIG — trade-411ee                  ║
+// ║  PASTE YOUR FIREBASE CONFIG HERE                 ║
+// ║  Firebase Console → Project Settings → Your App ║
 // ╚══════════════════════════════════════════════════╝
 const firebaseConfig = {
   apiKey:            "AIzaSyDCCDqa3cETn2gpi36mgLO3aSkA-U8nR_s",
@@ -21,57 +23,78 @@ const firebaseConfig = {
   appId:             "1:326734073228:web:d67c19df7bf8f8097bdaa9"
 };
 
-// Initialize Firebase (global, synchronous)
-let _db = null;
-let _fbReady = false;
+// Initialize Firebase
+let db = null;
+let firebaseReady = false;
 
 try {
-  if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
-  _db = firebase.firestore();
-  _fbReady = true;
-  console.log("✅ Firebase Firestore connected — project: trade-411ee");
+  const app = initializeApp(firebaseConfig);
+  db = getFirestore(app);
+  firebaseReady = true;
+  console.log("✅ Firebase connected");
 } catch(e) {
-  console.warn("⚠️ Firebase failed:", e.message);
+  console.warn("⚠️ Firebase not configured. Using localStorage only.", e.message);
 }
 
-// ── Firestore CRUD helpers (global) ───────────────
+// ── Firestore helpers ──────────────────────────────
+const STORE_DOC = "laptrade/store";
+
 async function fbSave(data) {
-  if (!_fbReady || !_db) return;
+  if (!firebaseReady || !db) return;
   try {
-    // Firestore can't store nested arrays of objects directly in one doc cleanly
-    // Serialize as JSON string fields for reliability
-    await _db.collection("laptrade").doc("store").set({
-      data: JSON.stringify(data),
-      updatedAt: new Date().toISOString()
-    });
-  } catch(e) { console.warn("fbSave error:", e.message); }
+    await setDoc(doc(db, "laptrade", "store"), data);
+  } catch(e) { console.warn("Firebase save failed:", e.message); }
 }
 
 async function fbLoad() {
-  if (!_fbReady || !_db) return null;
+  if (!firebaseReady || !db) return null;
   try {
-    const snap = await _db.collection("laptrade").doc("store").get();
-    if (snap.exists && snap.data() && snap.data().data) {
-      return JSON.parse(snap.data().data);
-    }
-    return null;
-  } catch(e) { console.warn("fbLoad error:", e.message); return null; }
+    const snap = await getDoc(doc(db, "laptrade", "store"));
+    return snap.exists() ? snap.data() : null;
+  } catch(e) { console.warn("Firebase load failed:", e.message); return null; }
 }
 
 function fbListen(callback) {
-  if (!_fbReady || !_db) return;
-  _db.collection("laptrade").doc("store").onSnapshot(snap => {
-    if (snap.exists && snap.data() && snap.data().data) {
-      try { callback(JSON.parse(snap.data().data)); } catch(e) {}
-    }
+  if (!firebaseReady || !db) return;
+  onSnapshot(doc(db, "laptrade", "store"), (snap) => {
+    if (snap.exists()) callback(snap.data());
   });
 }
 
-// Make available globally
-window._fbReady = _fbReady;
-window.fbSave   = fbSave;
-window.fbLoad   = fbLoad;
-window.fbListen = fbListen;
+// Expose to global scope for main script
+window._fb = { fbSave, fbLoad, fbListen, firebaseReady };
+
+// Load data from Firestore on startup
+window.addEventListener('DOMContentLoaded', async () => {
+  // Update fbStatus UI indicator
+  const fbStatusEl = document.getElementById('fbStatus');
+
+  if (!firebaseReady) {
+    if (fbStatusEl) fbStatusEl.textContent = '⚠ Offline mode';
+    window._fbReady = false;
+    window.dispatchEvent(new Event('fbDataReady'));
+    return;
+  }
+
+  if (fbStatusEl) fbStatusEl.textContent = '⏳ Connecting...';
+
+  try {
+    const fbData = await fbLoad();
+    if (fbData && fbData.tradeCounter !== undefined) {
+      window._fbInitialData = fbData;
+      console.log("✅ Data loaded from Firestore");
+    }
+    if (fbStatusEl) { fbStatusEl.textContent = '🟢 Cloud sync ON'; fbStatusEl.style.color = '#059669'; }
+  } catch(e) {
+    console.warn("Firebase load failed:", e.message);
+    if (fbStatusEl) { fbStatusEl.textContent = '⚠ Sync failed'; fbStatusEl.style.color = '#d97706'; }
+  }
+
+  // Show Firebase status in UI
+  window._fbReady = firebaseReady;
+  // Signal main script that Firebase is ready
+  window.dispatchEvent(new Event('fbDataReady'));
+});
 </script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
@@ -347,52 +370,44 @@ tr:hover td{background:#f9fafb;}
 // ═══════════════════════════════════════════════
 // STORE & HELPERS
 // ═══════════════════════════════════════════════
+// Wait for Firebase module to finish before initializing the app
+// This fixes the race condition where _fbInitialData was always undefined
+window.addEventListener('fbDataReady', function initApp() {
+  window.removeEventListener('fbDataReady', initApp);
+  _startApp();
+});
+// Fallback: if fbDataReady never fires (e.g. script load error), start after 4s
+setTimeout(() => { if(typeof store === 'undefined') _startApp(); }, 4000);
+
+function _startApp() {
+
 const ADMIN = {id:'mandalkuntal',pass:'Buku@2016',name:'Kuntal Mandal',role:'admin'};
 
-// ── Load store: Firestore → localStorage → empty ──
-let store = {employees:[],items:[],trades:[],tradeCounter:0};
-let _storeLoaded = false;
-
-async function loadStore(){
-  // Try Firestore first
-  if(window._fbReady){
-    const fbData = await window.fbLoad();
-    if(fbData && typeof fbData.tradeCounter!=='undefined'){
-      store = fbData;
-      localStorage.setItem('ltpStore', JSON.stringify(store));
-      console.log("✅ Store loaded from Firestore");
-      _storeLoaded = true;
-      return;
-    }
-  }
-  // Fallback: localStorage
-  const local = JSON.parse(localStorage.getItem('ltpStore')||'null');
-  if(local){ store = local; }
-  _storeLoaded = true;
-}
+// Load from Firestore if available, else localStorage
+let store = (window._fbInitialData) ||
+            JSON.parse(localStorage.getItem('ltpStore')||'null') ||
+            {employees:[],items:[],trades:[],tradeCounter:0};
 
 function save(){
-  // Always save to localStorage (instant, offline backup)
+  // Always save to localStorage (offline backup)
   localStorage.setItem('ltpStore', JSON.stringify(store));
-  // Save to Firestore (async, non-blocking)
-  if(window._fbReady && window.fbSave){
-    window.fbSave(store);
+  // Also save to Firestore if connected
+  if(window._fb && window._fb.firebaseReady){
+    window._fb.fbSave(JSON.parse(JSON.stringify(store)));
   }
 }
 
-// Real-time listener — sync when another device saves
-function startRealtimeSync(){
-  if(!window._fbReady || !window.fbListen) return;
-  window.fbListen((remoteData) => {
-    if(!remoteData) return;
-    store = remoteData;
+// Real-time listener: update store when another device changes data
+// Now safe to check _fb since we waited for fbDataReady
+if(window._fb && window._fb.firebaseReady){
+  window._fb.fbListen((data) => {
+    store = data;
     localStorage.setItem('ltpStore', JSON.stringify(store));
-    // Refresh UI if logged in
-    if(typeof currentUser!=='undefined' && currentUser && typeof currentPage!=='undefined'){
-      try{ showPage(currentPage); }catch(e){}
+    // Refresh current page view
+    if(typeof currentUser !== 'undefined' && currentUser && typeof currentPage !== 'undefined'){
+      showPage(currentPage);
     }
   });
-  console.log("🔄 Real-time sync active");
 }
 const BRANDS = ['Apple','Dell','HP','Lenovo','Asus','Acer','Samsung','Microsoft','MSI','Toshiba','Sony','LG','Huawei','Other'];
 function fmtDate(d){ return new Date(d).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}); }
@@ -464,30 +479,15 @@ function doLogout(){
   const banner=document.getElementById('guestBanner');
   if(banner) banner.style.display='none';
 }
-async function startApp(){
+function startApp(){
   document.getElementById('loginScreen').style.display='none';
   document.getElementById('app').style.display='block';
   document.getElementById('sbUser').textContent=currentUser.name;
   document.getElementById('sbRole').textContent=currentUser.role==='admin'?'Administrator':currentUser.role==='employee'?'Employee':'View Only';
-  buildNav();
-
-  // Show loading state
-  document.getElementById('mainContent').innerHTML=`
-    <div style="display:flex;align-items:center;justify-content:center;height:60vh;flex-direction:column;gap:16px">
-      <div style="width:40px;height:40px;border:3px solid #e2e5ea;border-top-color:#1a56db;border-radius:50%;animation:spin 0.8s linear infinite"></div>
-      <div style="color:#6b7280;font-size:14px">Connecting to Firebase...</div>
-    </div>
-    <style>@keyframes spin{to{transform:rotate(360deg)}}</style>`;
-
-  // Load store from Firestore then show UI
-  await loadStore();
-  startRealtimeSync();
-  showPage('dashboard');
-
+  buildNav(); showPage('dashboard');
   const banner=document.getElementById('guestBanner');
   if(banner) banner.style.display=currentUser.role==='guest'?'flex':'none';
-
-  // Firebase status badge
+  // Show Firebase connection status
   const fbSt=document.getElementById('fbStatus');
   if(fbSt){
     if(window._fbReady){
@@ -1721,6 +1721,8 @@ function searchTradeNo(){
   if(it){ document.getElementById('sbTradeSearch').value=''; showPage('tradeView',it.id); }
   else alert('No trade found for: '+q);
 }
+
+} // end _startApp()
 </script>
 </body>
 </html>
