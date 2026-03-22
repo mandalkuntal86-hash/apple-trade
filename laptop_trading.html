@@ -136,7 +136,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 body{font-family:'Inter',sans-serif;background:#f4f5f7;color:#1a1d23;min-height:100vh;}
 
 /* ── LOGIN ── */
-#loginScreen{position:fixed;inset:0;background:#f4f5f7;display:flex;align-items:center;justify-content:center;z-index:100;}
+#loginScreen{position:fixed;inset:0;background:#f4f5f7;display:flex;align-items:center;justify-content:center;z-index:200;}
 .login-card{background:#fff;border:1px solid #e2e5ea;border-radius:12px;padding:44px 40px;width:400px;max-width:95vw;box-shadow:0 4px 24px rgba(0,0,0,.07);}
 .login-brand{display:flex;align-items:center;gap:10px;margin-bottom:6px;}
 .login-brand-icon{width:36px;height:36px;background:#1a56db;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px;font-weight:700;}
@@ -153,9 +153,9 @@ body{font-family:'Inter',sans-serif;background:#f4f5f7;color:#1a1d23;min-height:
 .lerr{color:#dc2626;font-size:13px;margin-top:10px;display:none;}
 
 /* ── LAYOUT ── */
-#app{display:none;min-height:100vh;}
-.shell{display:flex;min-height:100vh;}
-.sidebar{width:220px;background:#fff;border-right:1px solid #e2e5ea;display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;z-index:50;}
+#app{display:none;min-height:100vh;width:100%;}
+.shell{display:flex;min-height:100vh;width:100%;}
+.sidebar{width:220px;background:#fff;border-right:1px solid #e2e5ea;display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;z-index:56;}
 .sb-brand{padding:20px 18px 16px;border-bottom:1px solid #e2e5ea;display:flex;align-items:center;gap:10px;}
 .sb-icon{width:32px;height:32px;background:#1a56db;border-radius:7px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:15px;flex-shrink:0;}
 .sb-name{font-size:15px;font-weight:700;color:#1a1d23;}
@@ -324,7 +324,7 @@ tr:hover td{background:#f9fafb;}
 .back-btn:hover{text-decoration:underline;}
 
 /* ── MOBILE HAMBURGER BUTTON ── */
-.mob-topbar{display:none;position:fixed;top:0;left:0;right:0;height:54px;background:#fff;border-bottom:1px solid #e2e5ea;z-index:60;align-items:center;padding:0 16px;gap:12px;}
+.mob-topbar{display:none;position:fixed;top:0;left:0;right:0;height:54px;background:#fff;border-bottom:1px solid #e2e5ea;z-index:59;align-items:center;padding:0 16px;gap:12px;}
 .mob-menu-btn{background:none;border:none;cursor:pointer;padding:6px;display:flex;flex-direction:column;gap:5px;flex-shrink:0;}
 .mob-menu-btn span{display:block;width:22px;height:2px;background:#1a1d23;border-radius:2px;transition:all .2s;}
 .mob-brand{font-size:16px;font-weight:700;color:#1a1d23;flex:1;}
@@ -343,7 +343,7 @@ tr:hover td{background:#f9fafb;}
   .sidebar.open{transform:translateX(0);}
 
   /* main content fills full width, padded below topbar */
-  .main{margin-left:0;padding:70px 14px 100px;min-height:100vh;}
+  .main{margin-left:0 !important;padding:62px 14px 90px !important;min-height:100vh;width:100%;}
 
   /* stat cards: 2 per row */
   .stat-row{flex-wrap:wrap;gap:10px;}
@@ -603,6 +603,13 @@ function doLogout(){
   loginRole='admin';
   document.getElementById('app').style.display='none';
   document.getElementById('loginScreen').style.display='flex';
+  // Hide mobile topbar on logout
+  const mob=document.getElementById('mobTopbar');
+  if(mob) mob.style.display='none';
+  const sb=document.querySelector('.sidebar');
+  const ov=document.getElementById('sidebarOverlay');
+  if(sb) sb.classList.remove('open');
+  if(ov) ov.classList.remove('open');
   document.getElementById('loginId').value='';
   document.getElementById('loginPass').value='';
   document.getElementById('loginErr').style.display='none';
@@ -668,11 +675,20 @@ document.addEventListener('click', e=>{
 function handleMobTopbar(){
   const mob = document.getElementById('mobTopbar');
   if(!mob) return;
-  if(window.innerWidth<=768){ mob.style.display='flex'; }
-  else { mob.style.display='none'; document.querySelector('.sidebar').classList.remove('open'); document.getElementById('sidebarOverlay').classList.remove('open'); }
+  // Only show mobile topbar when app is visible (after login)
+  const appVisible = document.getElementById('app').style.display !== 'none';
+  if(window.innerWidth<=768 && appVisible){
+    mob.style.display='flex';
+  } else {
+    mob.style.display='none';
+    const sb = document.querySelector('.sidebar');
+    const ov = document.getElementById('sidebarOverlay');
+    if(sb) sb.classList.remove('open');
+    if(ov) ov.classList.remove('open');
+  }
 }
 window.addEventListener('resize', handleMobTopbar);
-handleMobTopbar();
+// Don't call handleMobTopbar() on load — app is hidden until login
 
 // ═══════════════════════════════════════════════
 // SETTINGS PAGE — Firebase & GitHub Guide
