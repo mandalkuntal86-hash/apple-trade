@@ -66,34 +66,14 @@ window._fb = { fbSave, fbLoad, fbListen, firebaseReady };
 
 // Load data from Firestore on startup
 window.addEventListener('DOMContentLoaded', async () => {
-  // Update fbStatus UI indicator
-  const fbStatusEl = document.getElementById('fbStatus');
-
-  if (!firebaseReady) {
-    if (fbStatusEl) fbStatusEl.textContent = '⚠ Offline mode';
-    window._fbReady = false;
-    window.dispatchEvent(new Event('fbDataReady'));
-    return;
+  const fbData = await fbLoad();
+  if (fbData && fbData.tradeCounter !== undefined) {
+    // Merge Firestore data into store (Firestore takes priority)
+    window._fbInitialData = fbData;
+    console.log("✅ Data loaded from Firestore");
   }
-
-  if (fbStatusEl) fbStatusEl.textContent = '⏳ Connecting...';
-
-  try {
-    const fbData = await fbLoad();
-    if (fbData && fbData.tradeCounter !== undefined) {
-      window._fbInitialData = fbData;
-      console.log("✅ Data loaded from Firestore");
-    }
-    if (fbStatusEl) { fbStatusEl.textContent = '🟢 Cloud sync ON'; fbStatusEl.style.color = '#059669'; }
-  } catch(e) {
-    console.warn("Firebase load failed:", e.message);
-    if (fbStatusEl) { fbStatusEl.textContent = '⚠ Sync failed'; fbStatusEl.style.color = '#d97706'; }
-  }
-
   // Show Firebase status in UI
   window._fbReady = firebaseReady;
-  // Signal main script that Firebase is ready
-  window.dispatchEvent(new Event('fbDataReady'));
 });
 </script>
 <style>
@@ -370,17 +350,6 @@ tr:hover td{background:#f9fafb;}
 // ═══════════════════════════════════════════════
 // STORE & HELPERS
 // ═══════════════════════════════════════════════
-// Wait for Firebase module to finish before initializing the app
-// This fixes the race condition where _fbInitialData was always undefined
-window.addEventListener('fbDataReady', function initApp() {
-  window.removeEventListener('fbDataReady', initApp);
-  _startApp();
-});
-// Fallback: if fbDataReady never fires (e.g. script load error), start after 4s
-setTimeout(() => { if(typeof store === 'undefined') _startApp(); }, 4000);
-
-function _startApp() {
-
 const ADMIN = {id:'mandalkuntal',pass:'Buku@2016',name:'Kuntal Mandal',role:'admin'};
 
 // Load from Firestore if available, else localStorage
@@ -398,7 +367,6 @@ function save(){
 }
 
 // Real-time listener: update store when another device changes data
-// Now safe to check _fb since we waited for fbDataReady
 if(window._fb && window._fb.firebaseReady){
   window._fb.fbListen((data) => {
     store = data;
@@ -1721,8 +1689,6 @@ function searchTradeNo(){
   if(it){ document.getElementById('sbTradeSearch').value=''; showPage('tradeView',it.id); }
   else alert('No trade found for: '+q);
 }
-
-} // end _startApp()
 </script>
 </body>
 </html>
