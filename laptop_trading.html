@@ -304,89 +304,102 @@ tr:hover td{background:#f9fafb;}
 
 /* ── MOBILE (≤640px) ── */
 @media(max-width:640px){
-  /* Sidebar becomes a top bar */
+  /* Sidebar → sticky top bar */
   .sidebar{
-    width:100%; height:auto; position:fixed; top:0; left:0; right:0;
-    flex-direction:row; align-items:center; border-right:none;
-    border-bottom:1px solid #e2e5ea; z-index:50; padding:0;
-    flex-wrap:wrap;
+    width:100%; height:auto; position:sticky; top:0; left:0; right:0;
+    flex-direction:column; border-right:none;
+    border-bottom:2px solid #e2e5ea; z-index:50; padding:0;
+    background:#fff;
   }
-  .sb-brand{padding:10px 14px; border-bottom:none; flex:1;}
+  /* Row 1: brand + user */
+  .sb-top-row{display:flex; align-items:center; width:100%;}
+  .sb-brand{padding:10px 14px; border-bottom:none; flex:1; min-width:0;}
   .sb-name{font-size:14px;}
-  .sb-user{padding:10px 14px; border-bottom:none; border-left:1px solid #e2e5ea;}
+  .sb-user{
+    padding:10px 14px; border-bottom:none;
+    border-left:1px solid #e2e5ea; white-space:nowrap;
+  }
   .sb-uname{font-size:12px;} .sb-urole{font-size:10px;}
+
+  /* Row 2: nav pills — horizontal scroll */
   .sb-nav{
     flex-direction:row; flex-wrap:nowrap; overflow-x:auto;
-    width:100%; padding:6px 10px; border-top:1px solid #e2e5ea;
-    gap:4px; flex:none;
-    -webkit-overflow-scrolling:touch;
-    scrollbar-width:none;
+    width:100%; padding:8px 10px; border-top:1px solid #e2e5ea;
+    gap:6px; flex:none; display:flex;
+    -webkit-overflow-scrolling:touch; scrollbar-width:none;
   }
   .sb-nav::-webkit-scrollbar{display:none;}
   .nav-item{
-    white-space:nowrap; padding:7px 12px; font-size:12px;
-    flex-shrink:0; border-radius:20px;
+    white-space:nowrap; padding:7px 14px; font-size:12px;
+    flex-shrink:0; border-radius:20px; display:inline-flex;
   }
   .nav-section{display:none;}
+
+  /* Row 3: search + sign out */
   .sb-footer{
-    width:100%; border-top:1px solid #e2e5ea; padding:6px 10px;
+    width:100%; border-top:1px solid #e2e5ea; padding:7px 10px;
     display:flex; flex-direction:row; align-items:center; gap:8px;
+    background:#fff;
   }
   .sb-search{flex:1;}
-  .sb-search-input{width:100%; font-size:12px;}
-  .sb-logout{width:auto; padding:7px 12px; font-size:12px;}
+  .sb-search-input{width:100%; font-size:12px; padding:7px 10px;}
+  .sb-logout{width:auto; padding:7px 14px; font-size:12px; white-space:nowrap;}
 
-  /* Main content shifts below the top bar */
+  /* Main content — no left margin, full width */
   .main{
-    margin-left:0;
-    /* top bar ≈ brand row (48px) + nav row (50px) + footer row (46px) */
-    padding-top:152px;
-    padding-left:14px; padding-right:14px; padding-bottom:80px;
+    margin-left:0 !important;
+    padding:16px 12px 100px 12px;
+    width:100%; box-sizing:border-box; overflow-x:hidden;
   }
 
-  /* Stat cards: 2 per row on small screens */
-  .stat-row{gap:10px;}
-  .scard{min-width:calc(50% - 5px); padding:14px 14px;}
-  .scard-val{font-size:24px;}
+  /* Stat cards: 2×2 grid, full row width */
+  .stat-row{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px;}
+  .scard{min-width:0; padding:14px 12px; width:100%; box-sizing:border-box;}
+  .scard-val{font-size:22px;}
   .scard-label{font-size:10px;}
 
-  /* Tables: horizontal scroll */
-  .tbl-wrap{overflow-x:auto; -webkit-overflow-scrolling:touch;}
-  table{min-width:520px;}
-  th,td{padding:10px 12px; font-size:12px;}
+  /* Tables: full-width horizontal scroll container */
+  .tpanel{overflow:hidden; margin-bottom:16px;}
+  .tbl-wrap{overflow-x:auto; -webkit-overflow-scrolling:touch; width:100%;}
+  table{min-width:480px; width:100%;}
+  th,td{padding:9px 10px; font-size:12px;}
 
   /* Forms */
   .fgrid{grid-template-columns:1fr;}
-  .fpanel{padding:16px;}
+  .fpanel{padding:14px; margin-bottom:14px;}
 
-  /* Steps bar: stack vertically */
+  /* Steps bar */
   .steps-bar{flex-direction:column;}
   .step-item{border-right:none; border-bottom:1px solid #e2e5ea;}
   .step-item:last-child{border-bottom:none;}
 
   /* Page title */
   .page-title{font-size:17px;}
-  .topbar{flex-wrap:wrap; gap:8px;}
+  .topbar{flex-wrap:wrap; gap:8px; margin-bottom:14px;}
 
   /* Modal */
-  .modal{padding:20px; width:95vw;}
+  .modal{padding:18px; width:96vw; max-height:90vh; overflow-y:auto;}
 
-  /* Guest banner — compact */
+  /* Guest banner — fixed at bottom, full width */
   #guestBanner{
-    left:0; padding:8px 14px; font-size:11px;
-    flex-wrap:wrap; gap:6px;
+    left:0 !important; right:0; padding:10px 14px; font-size:12px;
+    flex-wrap:wrap; gap:6px; z-index:99;
   }
 
-  /* View detail panel */
-  .view-row{gap:16px;}
+  /* Detail panels */
+  .view-row{gap:12px; flex-direction:column;}
   .pgrid{grid-template-columns:1fr 1fr !important;}
 
   /* Employee grid */
   .emp-grid{grid-template-columns:1fr 1fr;}
 
-  /* Filter tabs */
-  .filter-tabs{flex-wrap:wrap;}
-  .date-bar{flex-wrap:wrap; gap:8px;}
+  /* Filter/date bars */
+  .filter-tabs{flex-wrap:wrap; gap:6px;}
+  .date-bar{flex-wrap:wrap; gap:8px; padding:10px 12px;}
+  .tpanel-head{padding:12px 14px;}
+
+  /* Prevent any element from overflowing screen */
+  .shell{overflow-x:hidden;}
 }
 
 /* ── Very small phones (≤380px) ── */
@@ -429,16 +442,18 @@ tr:hover td{background:#f9fafb;}
 <div id="app">
   <div class="shell">
     <aside class="sidebar">
-      <div class="sb-brand">
-        <div class="sb-icon">L</div>
-        <div>
-          <div class="sb-name">LapTrade</div>
-          <div id="fbStatus" style="font-size:10px;margin-top:2px;color:#9ca3af">⚙ Checking...</div>
+      <div class="sb-top-row">
+        <div class="sb-brand">
+          <div class="sb-icon">L</div>
+          <div>
+            <div class="sb-name">LapTrade</div>
+            <div id="fbStatus" style="font-size:10px;margin-top:2px;color:#9ca3af">⚙ Checking...</div>
+          </div>
         </div>
-      </div>
-      <div class="sb-user">
-        <div class="sb-uname" id="sbUser">—</div>
-        <div class="sb-urole" id="sbRole">—</div>
+        <div class="sb-user">
+          <div class="sb-uname" id="sbUser">—</div>
+          <div class="sb-urole" id="sbRole">—</div>
+        </div>
       </div>
       <nav class="sb-nav" id="sbNav"></nav>
       <div class="sb-footer">
@@ -768,6 +783,7 @@ const NAV_ADMIN=[
   {id:'step2',icon:'②',label:'Step 2 — Assign Trade'},
   {id:'step3',icon:'③',label:'Step 3 — Record Amount'},
   {id:'employees',icon:'👥',label:'Employees'},
+  {id:'empReport',icon:'📊',label:'Emp Report'},
 ];
 const NAV_EMP=[
   {id:'dashboard',icon:'▦',label:'Dashboard'},
@@ -796,6 +812,7 @@ function showPage(id,extra){
   else if(id==='employees') m.innerHTML=pgEmployees();
   else if(id==='viewItem') m.innerHTML=pgViewItem(extra);
   else if(id==='tradeView') m.innerHTML=pgTradeView(extra);
+  else if(id==='empReport') m.innerHTML=pgEmpReport();
   else if(id==='settings') m.innerHTML=pgSettings();
 }
 
@@ -1876,6 +1893,7 @@ function searchTradeNo(){
 }
 
 // ── Expose all onclick-called functions to global window scope ──
+window.pgEmpReport = pgEmpReport;
 window.showPage = showPage;
 window.closeModal = closeModal;
 window.handleOverlay = handleOverlay;
@@ -1909,6 +1927,93 @@ window.onS3TradeSelect = onS3TradeSelect;
 window.onS2TradeSelect = onS2TradeSelect;
 window.importData = importData;
 window.setDateFilter = setDateFilter;
+
+
+// ═══════════════════════════════════════════════
+// EMPLOYEE REPORT PAGE
+// ═══════════════════════════════════════════════
+function pgEmpReport(){
+  if(!isAdmin()) return `<div style="padding:40px;text-align:center"><div style="font-size:48px">🔒</div><div style="font-size:18px;font-weight:700;margin-top:12px">Admin Access Required</div></div>`;
+
+  // Build per-employee stats
+  const empStats = store.employees.map(emp => {
+    const empTrades = store.trades.filter(t => t.employeeId === emp.id || t.employeeName === emp.name);
+    const completed = empTrades.filter(t => t.amountRecorded);
+    const pending   = empTrades.filter(t => !t.amountRecorded);
+    const revenue   = completed.reduce((s,t) => s + (Number(t.amount)||0), 0);
+    const items     = empTrades.map(t => store.items.find(i=>i.id===t.itemId)).filter(Boolean);
+    return { emp, empTrades, completed, pending, revenue, items };
+  });
+
+  // Summary totals
+  const totalRevenue = empStats.reduce((s,e)=>s+e.revenue,0);
+  const totalTrades  = store.trades.length;
+
+  return `
+  <div class="topbar">
+    <div><div class="page-title">📊 Employee Report</div><div class="page-sub">Trade performance per employee</div></div>
+  </div>
+
+  <!-- Summary row -->
+  <div class="stat-row" style="margin-bottom:20px">
+    <div class="scard"><div class="scard-label">Total Employees</div><div class="scard-val blue">${store.employees.length}</div></div>
+    <div class="scard"><div class="scard-label">Total Trades</div><div class="scard-val gray">${totalTrades}</div></div>
+    <div class="scard"><div class="scard-label">Total Revenue</div><div class="scard-val green">${fmtAmt(totalRevenue)}</div></div>
+  </div>
+
+  ${empStats.length === 0 ? `<div class="tpanel"><div class="no-data">No employees found. Add employees from the Employees page.</div></div>` :
+    empStats.map(({emp, empTrades, completed, pending, revenue, items}) => {
+      const pct = totalRevenue > 0 ? Math.round(revenue/totalRevenue*100) : 0;
+      return `
+      <div class="tpanel" style="margin-bottom:20px">
+        <!-- Employee header -->
+        <div class="tpanel-head" style="background:#f9fafb">
+          <div style="display:flex;align-items:center;gap:12px">
+            <div style="width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,#1a56db,#7c3aed);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;color:#fff;flex-shrink:0">${emp.name.charAt(0).toUpperCase()}</div>
+            <div>
+              <div style="font-size:15px;font-weight:700;color:#1a1d23">${emp.name}</div>
+              <div style="font-size:12px;color:#6b7280">ID: ${emp.id}${emp.dept?' · '+emp.dept:''}</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:10px">
+            <div style="text-align:center"><div style="font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.6px">Total Trades</div><div style="font-size:22px;font-weight:700;color:#1a1d23">${empTrades.length}</div></div>
+            <div style="text-align:center"><div style="font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.6px">Completed</div><div style="font-size:22px;font-weight:700;color:#059669">${completed.length}</div></div>
+            <div style="text-align:center"><div style="font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.6px">Pending</div><div style="font-size:22px;font-weight:700;color:#d97706">${pending.length}</div></div>
+            <div style="text-align:center"><div style="font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.6px">Revenue</div><div style="font-size:22px;font-weight:700;color:#059669">${fmtAmt(revenue)}</div></div>
+            <div style="text-align:center"><div style="font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.6px">Share</div><div style="font-size:22px;font-weight:700;color:#1a56db">${pct}%</div></div>
+          </div>
+          <!-- Revenue bar -->
+          <div style="margin-top:10px;background:#e5e7eb;border-radius:6px;height:8px;overflow:hidden">
+            <div style="height:8px;border-radius:6px;background:linear-gradient(90deg,#1a56db,#059669);width:${pct}%;transition:width .4s"></div>
+          </div>
+        </div>
+
+        ${empTrades.length === 0 ? `<div class="no-data" style="padding:24px">No trades assigned yet</div>` : `
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr>
+              <th>Trade No.</th><th>Our Item</th><th>Trade-In</th><th>Status</th><th>Amount</th><th>Date</th>
+            </tr></thead>
+            <tbody>
+              ${empTrades.map(t => {
+                const it = store.items.find(i=>i.id===t.itemId)||{};
+                const tl = t.tradedLaptop||{};
+                return `<tr>
+                  <td><span class="trade-no">${it.tradeNo||'—'}</span></td>
+                  <td><div style="font-weight:600;font-size:12px">${it.brand||''} ${it.model||''}</div><div style="font-size:11px;color:#9ca3af">${t.serial||''}</div></td>
+                  <td><div style="font-size:12px;color:#059669;font-weight:600">${tl.brand||'—'} ${tl.model||''}</div><div style="font-size:11px;color:#9ca3af;font-family:monospace">${tl.serial||''}</div></td>
+                  <td>${getStatusBadge(t)}</td>
+                  <td style="font-weight:600;color:${t.amountRecorded?'#059669':'#9ca3af'}">${t.amountRecorded?fmtAmt(t.amount):'—'}</td>
+                  <td style="font-size:12px;color:#6b7280">${fmtDate(t.tradedAt||t.assignedAt)}</td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>`}
+      </div>`;
+    }).join('')
+  }`;
+}
 
 } // end _startApp()
 </script>
