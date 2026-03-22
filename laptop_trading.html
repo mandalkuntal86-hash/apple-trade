@@ -8,15 +8,16 @@
 <!-- ═══ FIREBASE SDK ═══ -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, collection, doc, setDoc, getDoc, onSnapshot, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getDatabase, ref, set, get, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
 // ╔══════════════════════════════════════════════════╗
-// ║  PASTE YOUR FIREBASE CONFIG HERE                 ║
-// ║  Firebase Console → Project Settings → Your App ║
+// ║  FIREBASE CONFIG                                 ║
 // ╚══════════════════════════════════════════════════╝
 const firebaseConfig = {
   apiKey:            "AIzaSyDCCDqa3cETn2gpi36mgLO3aSkA-U8nR_s",
   authDomain:        "trade-411ee.firebaseapp.com",
+  databaseURL:       "https://trade-411ee-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId:         "trade-411ee",
   storageBucket:     "trade-411ee.firebasestorage.app",
   messagingSenderId: "326734073228",
@@ -24,26 +25,61 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
-let db = null;
+let db = null;       // Firestore
+let rtdb = null;     // Realtime Database
 let firebaseReady = false;
+let rtdbReady = false;
 
 try {
   const app = initializeApp(firebaseConfig);
   db = getFirestore(app);
   firebaseReady = true;
-  console.log("✅ Firebase connected");
+  console.log("✅ Firestore connected");
+  try {
+    rtdb = getDatabase(app);
+    rtdbReady = true;
+    console.log("✅ Realtime Database connected");
+  } catch(e2) {
+    console.warn("⚠️ Realtime Database init failed:", e2.message);
+  }
 } catch(e) {
   console.warn("⚠️ Firebase not configured. Using localStorage only.", e.message);
 }
 
-// ── Firestore helpers ──────────────────────────────
-const STORE_DOC = "laptrade/store";
+// ── Realtime Database helpers (primary sync) ───────
+const RTDB_PATH = "laptrade/store";
 
+async function rtdbSave(data) {
+  if (!rtdbReady || !rtdb) return false;
+  try {
+    // Sanitize: replace undefined with null for RTDB
+    const clean = JSON.parse(JSON.stringify(data));
+    await set(ref(rtdb, RTDB_PATH), clean);
+    return true;
+  } catch(e) { console.warn("RTDB save failed:", e.message); return false; }
+}
+
+async function rtdbLoad() {
+  if (!rtdbReady || !rtdb) return null;
+  try {
+    const snap = await get(ref(rtdb, RTDB_PATH));
+    return snap.exists() ? snap.val() : null;
+  } catch(e) { console.warn("RTDB load failed:", e.message); return null; }
+}
+
+function rtdbListen(callback) {
+  if (!rtdbReady || !rtdb) return;
+  onValue(ref(rtdb, RTDB_PATH), (snap) => {
+    if (snap.exists()) callback(snap.val());
+  });
+}
+
+// ── Firestore helpers (secondary / fallback) ───────
 async function fbSave(data) {
   if (!firebaseReady || !db) return;
   try {
     await setDoc(doc(db, "laptrade", "store"), data);
-  } catch(e) { console.warn("Firebase save failed:", e.message); }
+  } catch(e) { console.warn("Firestore save failed:", e.message); }
 }
 
 async function fbLoad() {
@@ -51,7 +87,7 @@ async function fbLoad() {
   try {
     const snap = await getDoc(doc(db, "laptrade", "store"));
     return snap.exists() ? snap.data() : null;
-  } catch(e) { console.warn("Firebase load failed:", e.message); return null; }
+  } catch(e) { console.warn("Firestore load failed:", e.message); return null; }
 }
 
 function fbListen(callback) {
@@ -62,18 +98,37 @@ function fbListen(callback) {
 }
 
 // Expose to global scope for main script
-window._fb = { fbSave, fbLoad, fbListen, firebaseReady };
+window._fb = { fbSave, fbLoad, fbListen, firebaseReady,
+               rtdbSave, rtdbLoad, rtdbListen, rtdbReady };
 
-// Load data from Firestore on startup
+// Load data on startup — RTDB takes priority, then Firestore
 window.addEventListener('DOMContentLoaded', async () => {
-  const fbData = await fbLoad();
-  if (fbData && fbData.tradeCounter !== undefined) {
-    // Merge Firestore data into store (Firestore takes priority)
-    window._fbInitialData = fbData;
-    console.log("✅ Data loaded from Firestore");
+  let loaded = false;
+
+  // 1️⃣ Try Realtime Database first
+  if (rtdbReady) {
+    const rtData = await rtdbLoad();
+    if (rtData && rtData.tradeCounter !== undefined) {
+      window._fbInitialData = rtData;
+      loaded = true;
+      console.log("✅ Data loaded from Realtime Database");
+    }
   }
-  // Show Firebase status in UI
-  window._fbReady = firebaseReady;
+
+  // 2️⃣ Fall back to Firestore
+  if (!loaded && firebaseReady) {
+    const fsData = await fbLoad();
+    if (fsData && fsData.tradeCounter !== undefined) {
+      window._fbInitialData = fsData;
+      loaded = true;
+      console.log("✅ Data loaded from Firestore (fallback)");
+      // Mirror to RTDB
+      if (rtdbReady) { rtdbSave(fsData); }
+    }
+  }
+
+  window._fbReady = firebaseReady || rtdbReady;
+  window._rtdbReady = rtdbReady;
 });
 </script>
 <style>
@@ -360,18 +415,38 @@ let store = (window._fbInitialData) ||
 function save(){
   // Always save to localStorage (offline backup)
   localStorage.setItem('ltpStore', JSON.stringify(store));
-  // Also save to Firestore if connected
+  const snap = JSON.parse(JSON.stringify(store));
+  // 1️⃣ Save to Realtime Database (primary)
+  if(window._fb && window._fb.rtdbReady){
+    window._fb.rtdbSave(snap);
+  }
+  // 2️⃣ Also save to Firestore (secondary)
   if(window._fb && window._fb.firebaseReady){
-    window._fb.fbSave(JSON.parse(JSON.stringify(store)));
+    window._fb.fbSave(snap);
   }
 }
 
-// Real-time listener: update store when another device changes data
-if(window._fb && window._fb.firebaseReady){
-  window._fb.fbListen((data) => {
+// Real-time listener: RTDB preferred, Firestore as fallback
+// Use a flag to avoid double-updating
+let _rtdbListening = false;
+if(window._fb && window._fb.rtdbReady){
+  _rtdbListening = true;
+  window._fb.rtdbListen((data) => {
+    const newStr = JSON.stringify(data);
+    if(newStr === JSON.stringify(store)) return; // no change
     store = data;
     localStorage.setItem('ltpStore', JSON.stringify(store));
-    // Refresh current page view
+    if(typeof currentUser !== 'undefined' && currentUser && typeof currentPage !== 'undefined'){
+      showPage(currentPage);
+    }
+  });
+}
+if(!_rtdbListening && window._fb && window._fb.firebaseReady){
+  window._fb.fbListen((data) => {
+    const newStr = JSON.stringify(data);
+    if(newStr === JSON.stringify(store)) return;
+    store = data;
+    localStorage.setItem('ltpStore', JSON.stringify(store));
     if(typeof currentUser !== 'undefined' && currentUser && typeof currentPage !== 'undefined'){
       showPage(currentPage);
     }
@@ -458,9 +533,12 @@ function startApp(){
   // Show Firebase connection status
   const fbSt=document.getElementById('fbStatus');
   if(fbSt){
-    if(window._fbReady){
-      fbSt.innerHTML='🔥 Firebase Connected';
+    if(window._rtdbReady){
+      fbSt.innerHTML='🔥 Realtime DB Connected';
       fbSt.style.color='#059669';
+    } else if(window._fbReady){
+      fbSt.innerHTML='🗄️ Firestore Connected';
+      fbSt.style.color='#1a56db';
     } else {
       fbSt.innerHTML='💾 Local Storage Only';
       fbSt.style.color='#d97706';
@@ -475,16 +553,30 @@ document.getElementById('loginPass').addEventListener('keydown',e=>{if(e.key==='
 function pgSettings(){
   if(!isAdmin()) return '<div style="padding:40px;text-align:center"><div style="font-size:48px">🔒</div><div style="font-size:18px;font-weight:700;margin-top:12px">Admin Only</div></div>';
   const fbConnected = window._fbReady;
+  const rtdbConnected = window._rtdbReady;
   return `
   <div class="topbar"><div><div class="page-title">⚙ Firebase & GitHub Settings</div><div class="page-sub">Connect your app to the cloud</div></div></div>
 
-  <!-- Firebase Status Card -->
-  <div class="fpanel" style="border-left:4px solid ${fbConnected?'#059669':'#d97706'};margin-bottom:20px">
-    <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px">
-      <div style="font-size:32px">${fbConnected?'🔥':'💾'}</div>
-      <div>
-        <div style="font-size:16px;font-weight:700;color:${fbConnected?'#059669':'#d97706'}">${fbConnected?'Firebase Connected — Real-time Sync Active':'Firebase Not Configured — Using Local Storage'}</div>
-        <div style="font-size:13px;color:#6b7280;margin-top:2px">${fbConnected?'Data is syncing across all devices in real-time':'Data is saved only on this device/browser'}</div>
+  <!-- Firebase Status Cards -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px">
+    <div class="fpanel" style="border-left:4px solid ${rtdbConnected?'#059669':'#d97706'};margin-bottom:0">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div style="font-size:28px">${rtdbConnected?'🔥':'💾'}</div>
+        <div>
+          <div style="font-size:13px;font-weight:700;color:${rtdbConnected?'#059669':'#d97706'}">Realtime Database</div>
+          <div style="font-size:12px;color:#6b7280;margin-top:2px">${rtdbConnected?'✅ Connected — Primary sync active':'❌ Not connected'}</div>
+          ${rtdbConnected?`<div style="font-size:11px;color:#9ca3af;margin-top:2px;word-break:break-all">trade-411ee-default-rtdb.asia-southeast1</div>`:''}
+        </div>
+      </div>
+    </div>
+    <div class="fpanel" style="border-left:4px solid ${fbConnected?'#1a56db':'#d1d5db'};margin-bottom:0">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div style="font-size:28px">${fbConnected?'🗄️':'💾'}</div>
+        <div>
+          <div style="font-size:13px;font-weight:700;color:${fbConnected?'#1a56db':'#9ca3af'}">Firestore Database</div>
+          <div style="font-size:12px;color:#6b7280;margin-top:2px">${fbConnected?'✅ Connected — Secondary sync':'❌ Not connected'}</div>
+          ${fbConnected?`<div style="font-size:11px;color:#9ca3af;margin-top:2px">trade-411ee (Firestore)</div>`:''}
+        </div>
       </div>
     </div>
   </div>
