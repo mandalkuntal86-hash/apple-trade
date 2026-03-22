@@ -523,18 +523,24 @@ async function startApp(){
 
   // Mobile topbar
   if(window.innerWidth<=768) document.getElementById('mobTopbar').classList.add('visible');
-  const mobDot=document.getElementById('mobFbDot');
-  if(mobDot){
-    if(window._rtdbReady){mobDot.textContent='🔥 Live';mobDot.style.color='#059669';}
-    else if(window._fbReady){mobDot.textContent='🗄️ Sync';mobDot.style.color='#1a56db';}
-    else{mobDot.textContent='💾 Local';mobDot.style.color='#d97706';}
-  }
   const banner=document.getElementById('guestBanner');
   if(banner) banner.style.display=currentUser.role==='guest'?'flex':'none';
-  const fbSt=document.getElementById('fbStatus');
+  // Update status after a short delay to let the ES module finish
+  setTimeout(updateFbStatus, 800);
+}
+function updateFbStatus(){
+  const rtdbOk = window._fb && window._fb.rtdbReady;
+  const fsOk   = window._fb && window._fb.firebaseReady;
+  const mobDot = document.getElementById('mobFbDot');
+  const fbSt   = document.getElementById('fbStatus');
+  if(mobDot){
+    if(rtdbOk){mobDot.textContent='🔥 Live';mobDot.style.color='#059669';}
+    else if(fsOk){mobDot.textContent='🗄️ Sync';mobDot.style.color='#1a56db';}
+    else{mobDot.textContent='💾 Local';mobDot.style.color='#d97706';}
+  }
   if(fbSt){
-    if(window._rtdbReady){fbSt.innerHTML='🔥 Realtime DB Connected';fbSt.style.color='#059669';}
-    else if(window._fbReady){fbSt.innerHTML='🗄️ Firestore Connected';fbSt.style.color='#1a56db';}
+    if(rtdbOk){fbSt.innerHTML='🔥 Realtime DB Connected';fbSt.style.color='#059669';}
+    else if(fsOk){fbSt.innerHTML='🗄️ Firestore Connected';fbSt.style.color='#1a56db';}
     else{fbSt.innerHTML='💾 Local Storage Only';fbSt.style.color='#d97706';}
   }
 }
