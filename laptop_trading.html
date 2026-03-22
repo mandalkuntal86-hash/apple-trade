@@ -11,9 +11,6 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/fireba
 import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { getDatabase, ref, set, get, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
-// ╔══════════════════════════════════════════════════╗
-// ║  FIREBASE CONFIG                                 ║
-// ╚══════════════════════════════════════════════════╝
 const firebaseConfig = {
   apiKey:            "AIzaSyDCCDqa3cETn2gpi36mgLO3aSkA-U8nR_s",
   authDomain:        "trade-411ee.firebaseapp.com",
@@ -24,109 +21,54 @@ const firebaseConfig = {
   appId:             "1:326734073228:web:d67c19df7bf8f8097bdaa9"
 };
 
-// Initialize Firebase
-let db = null;       // Firestore
-let rtdb = null;     // Realtime Database
-let firebaseReady = false;
-let rtdbReady = false;
-
+let db = null, rtdb = null, firebaseReady = false, rtdbReady = false;
 try {
   const app = initializeApp(firebaseConfig);
-  db = getFirestore(app);
-  firebaseReady = true;
-  console.log("✅ Firestore connected");
-  try {
-    rtdb = getDatabase(app);
-    rtdbReady = true;
-    console.log("✅ Realtime Database connected");
-  } catch(e2) {
-    console.warn("⚠️ Realtime Database init failed:", e2.message);
-  }
-} catch(e) {
-  console.warn("⚠️ Firebase not configured. Using localStorage only.", e.message);
-}
-
-// ── Realtime Database helpers (primary sync) ───────
-const RTDB_PATH = "laptrade/store";
+  db = getFirestore(app); firebaseReady = true;
+  rtdb = getDatabase(app); rtdbReady = true;
+  console.log("✅ Firebase + RTDB ready");
+} catch(e) { console.warn("Firebase init failed:", e.message); }
 
 async function rtdbSave(data) {
-  if (!rtdbReady || !rtdb) return false;
-  try {
-    // Sanitize: replace undefined with null for RTDB
-    const clean = JSON.parse(JSON.stringify(data));
-    await set(ref(rtdb, RTDB_PATH), clean);
-    return true;
-  } catch(e) { console.warn("RTDB save failed:", e.message); return false; }
+  if (!rtdbReady) return;
+  try { await set(ref(rtdb,"laptrade/store"), JSON.parse(JSON.stringify(data))); } catch(e) { console.warn("RTDB save:",e.message); }
 }
-
 async function rtdbLoad() {
-  if (!rtdbReady || !rtdb) return null;
-  try {
-    const snap = await get(ref(rtdb, RTDB_PATH));
-    return snap.exists() ? snap.val() : null;
-  } catch(e) { console.warn("RTDB load failed:", e.message); return null; }
+  if (!rtdbReady) return null;
+  try { const s=await get(ref(rtdb,"laptrade/store")); return s.exists()?s.val():null; } catch(e) { return null; }
 }
-
-function rtdbListen(callback) {
-  if (!rtdbReady || !rtdb) return;
-  onValue(ref(rtdb, RTDB_PATH), (snap) => {
-    if (snap.exists()) callback(snap.val());
-  });
+function rtdbListen(cb) {
+  if (!rtdbReady) return;
+  onValue(ref(rtdb,"laptrade/store"), s=>{ if(s.exists()) cb(s.val()); });
 }
-
-// ── Firestore helpers (secondary / fallback) ───────
 async function fbSave(data) {
-  if (!firebaseReady || !db) return;
-  try {
-    await setDoc(doc(db, "laptrade", "store"), data);
-  } catch(e) { console.warn("Firestore save failed:", e.message); }
+  if (!firebaseReady) return;
+  try { await setDoc(doc(db,"laptrade","store"), data); } catch(e) {}
+}
+function fbListen(cb) {
+  if (!firebaseReady) return;
+  onSnapshot(doc(db,"laptrade","store"), s=>{ if(s.exists()) cb(s.data()); });
 }
 
 async function fbLoad() {
-  if (!firebaseReady || !db) return null;
-  try {
-    const snap = await getDoc(doc(db, "laptrade", "store"));
-    return snap.exists() ? snap.data() : null;
-  } catch(e) { console.warn("Firestore load failed:", e.message); return null; }
+  if (!firebaseReady) return null;
+  try { const s=await getDoc(doc(db,"laptrade","store")); return s.exists()?s.data():null; }
+  catch(e) { return null; }
 }
+window._fb = { fbSave, fbLoad, fbListen, firebaseReady, rtdbSave, rtdbLoad, rtdbListen, rtdbReady };
 
-function fbListen(callback) {
-  if (!firebaseReady || !db) return;
-  onSnapshot(doc(db, "laptrade", "store"), (snap) => {
-    if (snap.exists()) callback(snap.data());
-  });
-}
-
-// Expose to global scope for main script
-window._fb = { fbSave, fbLoad, fbListen, firebaseReady,
-               rtdbSave, rtdbLoad, rtdbListen, rtdbReady };
-
-// Load data on startup — RTDB takes priority, then Firestore
 window.addEventListener('DOMContentLoaded', async () => {
   let loaded = false;
-
-  // 1️⃣ Try Realtime Database first
   if (rtdbReady) {
-    const rtData = await rtdbLoad();
-    if (rtData && rtData.tradeCounter !== undefined) {
-      window._fbInitialData = rtData;
-      loaded = true;
-      console.log("✅ Data loaded from Realtime Database");
-    }
+    const d = await rtdbLoad();
+    if (d && d.tradeCounter !== undefined) { window._fbInitialData = d; loaded = true; }
   }
-
-  // 2️⃣ Fall back to Firestore
   if (!loaded && firebaseReady) {
-    const fsData = await fbLoad();
-    if (fsData && fsData.tradeCounter !== undefined) {
-      window._fbInitialData = fsData;
-      loaded = true;
-      console.log("✅ Data loaded from Firestore (fallback)");
-      // Mirror to RTDB
-      if (rtdbReady) { rtdbSave(fsData); }
-    }
+    try {
+      const s = await getDoc(doc(db,"laptrade","store"));
+      if (s.exists()) { window._fbInitialData = s.data(); if(rtdbReady) rtdbSave(s.data()); }
+    } catch(e) {}
   }
-
   window._fbReady = firebaseReady || rtdbReady;
   window._rtdbReady = rtdbReady;
 });
@@ -136,7 +78,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 body{font-family:'Inter',sans-serif;background:#f4f5f7;color:#1a1d23;min-height:100vh;}
 
 /* ── LOGIN ── */
-#loginScreen{position:fixed;inset:0;background:#f4f5f7;display:flex;align-items:center;justify-content:center;z-index:200;}
+#loginScreen{position:fixed;inset:0;background:#f4f5f7;display:flex;align-items:center;justify-content:center;z-index:100;}
 .login-card{background:#fff;border:1px solid #e2e5ea;border-radius:12px;padding:44px 40px;width:400px;max-width:95vw;box-shadow:0 4px 24px rgba(0,0,0,.07);}
 .login-brand{display:flex;align-items:center;gap:10px;margin-bottom:6px;}
 .login-brand-icon{width:36px;height:36px;background:#1a56db;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px;font-weight:700;}
@@ -153,9 +95,9 @@ body{font-family:'Inter',sans-serif;background:#f4f5f7;color:#1a1d23;min-height:
 .lerr{color:#dc2626;font-size:13px;margin-top:10px;display:none;}
 
 /* ── LAYOUT ── */
-#app{display:none;min-height:100vh;width:100%;}
-.shell{display:flex;min-height:100vh;width:100%;}
-.sidebar{width:220px;background:#fff;border-right:1px solid #e2e5ea;display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;z-index:56;}
+#app{display:none;min-height:100vh;}
+.shell{display:flex;min-height:100vh;}
+.sidebar{width:220px;background:#fff;border-right:1px solid #e2e5ea;display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;z-index:50;}
 .sb-brand{padding:20px 18px 16px;border-bottom:1px solid #e2e5ea;display:flex;align-items:center;gap:10px;}
 .sb-icon{width:32px;height:32px;background:#1a56db;border-radius:7px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:15px;flex-shrink:0;}
 .sb-name{font-size:15px;font-weight:700;color:#1a1d23;}
@@ -323,107 +265,65 @@ tr:hover td{background:#f9fafb;}
 .back-btn{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:#1a56db;cursor:pointer;background:none;border:none;font-family:'Inter',sans-serif;margin-bottom:16px;padding:0;}
 .back-btn:hover{text-decoration:underline;}
 
-/* ── MOBILE TOPBAR — hidden always, shown via JS class after login ── */
+/* ── MOBILE TOPBAR ── */
 .mob-topbar{display:none;position:fixed;top:0;left:0;right:0;height:54px;background:#fff;border-bottom:1px solid #e2e5ea;z-index:59;align-items:center;padding:0 16px;gap:12px;}
 .mob-topbar.visible{display:flex;}
-.mob-menu-btn{background:none;border:none;cursor:pointer;padding:6px;display:flex;flex-direction:column;gap:5px;flex-shrink:0;}
-.mob-menu-btn span{display:block;width:22px;height:2px;background:#1a1d23;border-radius:2px;transition:all .2s;}
+.mob-menu-btn{background:none;border:none;cursor:pointer;padding:6px;display:flex;flex-direction:column;gap:5px;}
+.mob-menu-btn span{display:block;width:22px;height:2px;background:#1a1d23;border-radius:2px;}
 .mob-brand{font-size:16px;font-weight:700;color:#1a1d23;flex:1;}
-.mob-fb-status{font-size:10px;color:#6b7280;}
-
-/* ── SIDEBAR OVERLAY ── */
-.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:55;}
+.mob-fb-dot{font-size:11px;color:#6b7280;}
+.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:55;}
 .sidebar-overlay.open{display:block;}
-
-/* ── GUEST BANNER fix ── */
-#guestBanner{left:220px;right:0;}
-
 @media(max-width:768px){
-  /* sidebar hidden off-screen, slides in */
-  .sidebar{transform:translateX(-100%);transition:transform .25s ease;z-index:57;width:260px;}
+  .sidebar{transform:translateX(-100%);transition:transform .25s ease;z-index:57;width:250px;}
   .sidebar.open{transform:translateX(0);}
-
-  /* main fills full width below topbar */
-  .main{margin-left:0 !important;padding:66px 14px 30px 14px !important;min-height:100vh;width:100%;box-sizing:border-box;}
-
-  /* guest banner full width on mobile */
-  #guestBanner{left:0 !important;right:0 !important;}
-
-  /* stat cards 2-per-row */
+  .main{margin-left:0!important;padding:66px 14px 30px!important;width:100%;box-sizing:border-box;}
+  #guestBanner{left:0!important;}
   .stat-row{flex-wrap:wrap;gap:10px;}
   .scard{min-width:calc(50% - 5px);padding:14px 16px;}
   .scard-val{font-size:22px;}
-
-  /* table → card layout */
   .tbl-wrap table thead{display:none;}
   .tbl-wrap table,.tbl-wrap tbody,.tbl-wrap tr{display:block;width:100%;}
   .tbl-wrap tr{background:#fff;border:1px solid #e2e5ea;border-radius:10px;margin-bottom:10px;padding:12px 14px;}
   .tbl-wrap td{display:flex;justify-content:space-between;align-items:flex-start;padding:5px 0;border:none;font-size:13px;gap:8px;flex-wrap:wrap;}
-  .tbl-wrap td::before{content:attr(data-label);font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;flex-shrink:0;min-width:72px;}
+  .tbl-wrap td::before{content:attr(data-label);font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;min-width:72px;flex-shrink:0;}
   .tbl-wrap td:last-child{padding-top:10px;border-top:1px solid #f1f3f5;margin-top:4px;}
   .tbl-wrap tr:hover td{background:transparent;}
-  .no-data{padding:32px;}
-
-  /* date bar */
-  .date-bar{flex-wrap:wrap;gap:6px;padding:10px 14px;}
-  .date-bar input[type=date]{font-size:12px;}
+  .date-bar{flex-wrap:wrap;padding:10px 14px;}
   .showing{margin-left:0;width:100%;}
-
-  /* filter tabs */
   .filter-tabs{flex-wrap:wrap;}
   .ftab{font-size:11px;padding:5px 10px;}
-
-  /* panel header stacks */
   .tpanel-head{flex-direction:column;align-items:flex-start;gap:8px;padding:12px 14px;}
-
-  /* single col forms */
   .fgrid{grid-template-columns:1fr;}
   .fgroup.full{grid-column:1;}
   .fpanel{padding:16px 14px;}
-
-  /* steps bar */
   .steps-bar{overflow-x:auto;-webkit-overflow-scrolling:touch;}
   .step-item{min-width:120px;padding:10px 12px;}
-
-  /* preview grid */
   .pgrid{grid-template-columns:1fr 1fr;}
-
-  /* modal */
   .modal{width:96vw;padding:18px 14px;max-height:88vh;overflow-y:auto;}
-
-  /* login */
   .login-card{padding:28px 18px;}
-
-  /* page topbar */
   .topbar{flex-wrap:wrap;gap:8px;}
   .page-title{font-size:16px;}
   .btn-new{font-size:12px;padding:7px 12px;}
-
-  /* emp grid */
   .emp-grid{grid-template-columns:1fr 1fr;}
-
-  /* action buttons */
   .acts{flex-wrap:wrap;}
   .btn-step,.btn-step2,.btn-step3,.btn-edit{font-size:11px;padding:5px 10px;}
 }
-
 @media(max-width:400px){
   .scard{min-width:100%;}
   .emp-grid{grid-template-columns:1fr;}
   .pgrid{grid-template-columns:1fr;}
-  .main{padding:62px 10px 20px 10px !important;}
+  .main{padding:62px 10px 20px!important;}
 }
 </style>
 </head>
 <body>
 
-<!-- MOBILE TOPBAR (shown only on small screens) -->
-<div class="mob-topbar" id="mobTopbar" style="display:none">
-  <button class="mob-menu-btn" onclick="toggleSidebar()" aria-label="Menu">
-    <span></span><span></span><span></span>
-  </button>
+<!-- MOBILE TOPBAR -->
+<div class="mob-topbar" id="mobTopbar">
+  <button class="mob-menu-btn" onclick="toggleSidebar()"><span></span><span></span><span></span></button>
   <div class="mob-brand">🖥 LapTrade</div>
-  <div class="mob-fb-status" id="mobFbStatus"></div>
+  <div class="mob-fb-dot" id="mobFbDot"></div>
 </div>
 <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
 
@@ -477,7 +377,7 @@ tr:hover td{background:#f9fafb;}
       </div>
     </aside>
     <main class="main" id="mainContent"></main>
-    <div id="guestBanner" style="display:none;position:fixed;bottom:0;left:220px;right:0;background:#1a1d23;color:#fff;padding:10px 24px;font-size:12px;font-weight:600;z-index:100;align-items:center;gap:8px" class="guest-banner">
+    <div id="guestBanner" style="display:none;position:fixed;bottom:0;left:220px;right:0;background:#1a1d23;color:#fff;padding:10px 24px;font-size:12px;font-weight:600;z-index:100;align-items:center;gap:8px">
       <span style="background:#d97706;border-radius:4px;padding:2px 8px;font-size:11px">VIEW ONLY</span>
       You are logged in as Guest. Edit and Delete actions are disabled. 
       <button onclick="doLogout()" style="margin-left:auto;background:#fff;color:#1a1d23;border:none;border-radius:6px;padding:4px 12px;cursor:pointer;font-weight:700;font-family:'Inter',sans-serif;font-size:12px">Login to Edit →</button>
@@ -506,44 +406,29 @@ tr:hover td{background:#f9fafb;}
 // ═══════════════════════════════════════════════
 const ADMIN = {id:'mandalkuntal',pass:'Buku@2016',name:'Kuntal Mandal',role:'admin'};
 
-// Load from Firestore if available, else localStorage
-let store = (window._fbInitialData) ||
-            JSON.parse(localStorage.getItem('ltpStore')||'null') ||
+// store starts from localStorage immediately (sync)
+let store = JSON.parse(localStorage.getItem('ltpStore')||'null') ||
             {employees:[],items:[],trades:[],tradeCounter:0};
 
 function save(){
   const snap = JSON.parse(JSON.stringify(store));
-  // Always save to localStorage (offline backup)
   localStorage.setItem('ltpStore', JSON.stringify(snap));
-  // 1️⃣ Save to Realtime Database (primary) — async, non-blocking
-  if(window._fb && window._fb.rtdbReady){
-    window._fb.rtdbSave(snap).catch(e=>console.warn('RTDB save error:',e));
-  }
-  // 2️⃣ Mirror to Firestore (secondary)
-  if(window._fb && window._fb.firebaseReady){
-    window._fb.fbSave(snap);
-  }
+  if(window._fb && window._fb.rtdbReady) window._fb.rtdbSave(snap);
+  if(window._fb && window._fb.firebaseReady) window._fb.fbSave(snap);
 }
 
-// Real-time listener — attached once after login (see startApp)
-let _realtimeListenerAttached = false;
+// Realtime listener — attached AFTER login so _fb is ready
+let _listenerOn = false;
 function attachRealtimeListener(){
-  if(_realtimeListenerAttached) return;
-  _realtimeListenerAttached = true;
-  function onRemoteData(data){
-    const newStr = JSON.stringify(data);
-    if(newStr === JSON.stringify(store)) return;
+  if(_listenerOn) return; _listenerOn = true;
+  function onData(data){
+    if(JSON.stringify(data)===JSON.stringify(store)) return;
     store = data;
     localStorage.setItem('ltpStore', JSON.stringify(store));
     if(currentUser && currentPage) showPage(currentPage);
   }
-  if(window._fb && window._fb.rtdbReady){
-    window._fb.rtdbListen(onRemoteData);
-    console.log("✅ RTDB realtime listener attached");
-  } else if(window._fb && window._fb.firebaseReady){
-    window._fb.fbListen(onRemoteData);
-    console.log("✅ Firestore realtime listener attached");
-  }
+  if(window._fb && window._fb.rtdbReady) window._fb.rtdbListen(onData);
+  else if(window._fb && window._fb.firebaseReady) window._fb.fbListen(onData);
 }
 const BRANDS = ['Apple','Dell','HP','Lenovo','Asus','Acer','Samsung','Microsoft','MSI','Toshiba','Sony','LG','Huawei','Other'];
 function fmtDate(d){ return new Date(d).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}); }
@@ -600,63 +485,72 @@ function doLogin(){
 }
 function doLogout(){
   currentUser=null;
-  // Hide app, show login
   document.getElementById('app').style.display='none';
   document.getElementById('loginScreen').style.display='flex';
-  // Hide mobile topbar
-  const mob=document.getElementById('mobTopbar');
-  if(mob) mob.classList.remove('visible');
-  // Close sidebar drawer
-  const sb=document.querySelector('.sidebar');
-  const ov=document.getElementById('sidebarOverlay');
-  if(sb) sb.classList.remove('open');
-  if(ov) ov.classList.remove('open');
-  // Hide guest banner
+  document.getElementById('mobTopbar').classList.remove('visible');
+  document.querySelector('.sidebar').classList.remove('open');
+  document.getElementById('sidebarOverlay').classList.remove('open');
   const banner=document.getElementById('guestBanner');
   if(banner) banner.style.display='none';
-  // Reset login form fully via setRole
   document.getElementById('loginId').value='';
   document.getElementById('loginPass').value='';
   document.getElementById('loginErr').style.display='none';
   setRole('admin');
 }
-function startApp(){
+async function startApp(){
+  // Show app shell immediately
   document.getElementById('loginScreen').style.display='none';
   document.getElementById('app').style.display='block';
   document.getElementById('sbUser').textContent=currentUser.name;
   document.getElementById('sbRole').textContent=currentUser.role==='admin'?'Administrator':currentUser.role==='employee'?'Employee':'View Only';
-  buildNav(); showPage('dashboard');
+  buildNav();
+
+  // Load latest data from RTDB/Firestore before first render
+  if(window._fb && window._fb.rtdbReady){
+    try{
+      const d = await window._fb.rtdbLoad();
+      if(d && d.tradeCounter!==undefined){ store=d; localStorage.setItem('ltpStore',JSON.stringify(d)); }
+    }catch(e){}
+  } else if(window._fb && window._fb.firebaseReady){
+    try{
+      const snap = await window._fb.fbLoad ? window._fb.fbLoad() : null;
+      if(snap && snap.tradeCounter!==undefined){ store=snap; localStorage.setItem('ltpStore',JSON.stringify(snap)); }
+    }catch(e){}
+  }
+
+  showPage('dashboard');
   attachRealtimeListener();
-  handleMobTopbar();
-  // Update mobile fb status
-  const mobFb = document.getElementById('mobFbStatus');
-  if(mobFb){
-    if(window._rtdbReady){ mobFb.textContent='🔥 Live'; mobFb.style.color='#059669'; }
-    else if(window._fbReady){ mobFb.textContent='🗄️ Sync'; mobFb.style.color='#1a56db'; }
-    else { mobFb.textContent='💾 Local'; mobFb.style.color='#d97706'; }
+
+  // Mobile topbar
+  if(window.innerWidth<=768) document.getElementById('mobTopbar').classList.add('visible');
+  const mobDot=document.getElementById('mobFbDot');
+  if(mobDot){
+    if(window._rtdbReady){mobDot.textContent='🔥 Live';mobDot.style.color='#059669';}
+    else if(window._fbReady){mobDot.textContent='🗄️ Sync';mobDot.style.color='#1a56db';}
+    else{mobDot.textContent='💾 Local';mobDot.style.color='#d97706';}
   }
   const banner=document.getElementById('guestBanner');
   if(banner) banner.style.display=currentUser.role==='guest'?'flex':'none';
-  // Show Firebase connection status
   const fbSt=document.getElementById('fbStatus');
   if(fbSt){
-    if(window._rtdbReady){
-      fbSt.innerHTML='🔥 Realtime DB Connected';
-      fbSt.style.color='#059669';
-    } else if(window._fbReady){
-      fbSt.innerHTML='🗄️ Firestore Connected';
-      fbSt.style.color='#1a56db';
-    } else {
-      fbSt.innerHTML='💾 Local Storage Only';
-      fbSt.style.color='#d97706';
-    }
+    if(window._rtdbReady){fbSt.innerHTML='🔥 Realtime DB Connected';fbSt.style.color='#059669';}
+    else if(window._fbReady){fbSt.innerHTML='🗄️ Firestore Connected';fbSt.style.color='#1a56db';}
+    else{fbSt.innerHTML='💾 Local Storage Only';fbSt.style.color='#d97706';}
   }
 }
 document.getElementById('loginPass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
-
-// ═══════════════════════════════════════════════
-// MOBILE SIDEBAR TOGGLE
-// ═══════════════════════════════════════════════
+window.addEventListener('resize',()=>{
+  const mob=document.getElementById('mobTopbar');
+  if(!mob) return;
+  const appOn=document.getElementById('app').style.display!=='none';
+  if(window.innerWidth>768){
+    mob.classList.remove('visible');
+    document.querySelector('.sidebar').classList.remove('open');
+    document.getElementById('sidebarOverlay').classList.remove('open');
+  } else if(appOn){
+    mob.classList.add('visible');
+  }
+});
 function toggleSidebar(){
   document.querySelector('.sidebar').classList.toggle('open');
   document.getElementById('sidebarOverlay').classList.toggle('open');
@@ -665,30 +559,9 @@ function closeSidebar(){
   document.querySelector('.sidebar').classList.remove('open');
   document.getElementById('sidebarOverlay').classList.remove('open');
 }
-// Close sidebar when a nav item is tapped on mobile
-document.addEventListener('click', e=>{
-  if(e.target.closest('.nav-item') && window.innerWidth<=768) closeSidebar();
+document.addEventListener('click',e=>{
+  if(e.target.closest('.nav-item')&&window.innerWidth<=768) closeSidebar();
 });
-// Show/hide mobile topbar based on screen size
-function handleMobTopbar(){
-  const mob = document.getElementById('mobTopbar');
-  if(!mob) return;
-  const appVisible = document.getElementById('app').style.display !== 'none';
-  const isMobile = window.innerWidth <= 768;
-  if(isMobile && appVisible){
-    mob.classList.add('visible');
-  } else {
-    mob.classList.remove('visible');
-    if(!isMobile){
-      const sb = document.querySelector('.sidebar');
-      const ov = document.getElementById('sidebarOverlay');
-      if(sb) sb.classList.remove('open');
-      if(ov) ov.classList.remove('open');
-    }
-  }
-}
-window.addEventListener('resize', handleMobTopbar);
-// NOT called on page load — mob topbar stays hidden until after login
 
 // ═══════════════════════════════════════════════
 // SETTINGS PAGE — Firebase & GitHub Guide
@@ -696,30 +569,15 @@ window.addEventListener('resize', handleMobTopbar);
 function pgSettings(){
   if(!isAdmin()) return '<div style="padding:40px;text-align:center"><div style="font-size:48px">🔒</div><div style="font-size:18px;font-weight:700;margin-top:12px">Admin Only</div></div>';
   const fbConnected = window._fbReady;
-  const rtdbConnected = window._rtdbReady;
+  const rtdbOk = window._rtdbReady;
   return `
-  <div class="topbar"><div><div class="page-title">⚙ Firebase & GitHub Settings</div><div class="page-sub">Connect your app to the cloud</div></div></div>
-
-  <!-- Firebase Status Cards -->
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px">
-    <div class="fpanel" style="border-left:4px solid ${rtdbConnected?'#059669':'#d97706'};margin-bottom:0">
-      <div style="display:flex;align-items:center;gap:12px">
-        <div style="font-size:28px">${rtdbConnected?'🔥':'💾'}</div>
-        <div>
-          <div style="font-size:13px;font-weight:700;color:${rtdbConnected?'#059669':'#d97706'}">Realtime Database</div>
-          <div style="font-size:12px;color:#6b7280;margin-top:2px">${rtdbConnected?'✅ Connected — Primary sync active':'❌ Not connected'}</div>
-          ${rtdbConnected?`<div style="font-size:11px;color:#9ca3af;margin-top:2px;word-break:break-all">trade-411ee-default-rtdb.asia-southeast1</div>`:''}
-        </div>
-      </div>
-    </div>
-    <div class="fpanel" style="border-left:4px solid ${fbConnected?'#1a56db':'#d1d5db'};margin-bottom:0">
-      <div style="display:flex;align-items:center;gap:12px">
-        <div style="font-size:28px">${fbConnected?'🗄️':'💾'}</div>
-        <div>
-          <div style="font-size:13px;font-weight:700;color:${fbConnected?'#1a56db':'#9ca3af'}">Firestore Database</div>
-          <div style="font-size:12px;color:#6b7280;margin-top:2px">${fbConnected?'✅ Connected — Secondary sync':'❌ Not connected'}</div>
-          ${fbConnected?`<div style="font-size:11px;color:#9ca3af;margin-top:2px">trade-411ee (Firestore)</div>`:''}
-        </div>
+  <div class="topbar"><div><div class="page-title">⚙ Firebase & Settings</div><div class="page-sub">Database sync status</div></div></div>
+  <div class="fpanel" style="border-left:4px solid ${rtdbOk?'#059669':'#d97706'};margin-bottom:20px">
+    <div style="display:flex;align-items:center;gap:14px">
+      <div style="font-size:32px">${rtdbOk?'🔥':'💾'}</div>
+      <div>
+        <div style="font-size:15px;font-weight:700;color:${rtdbOk?'#059669':'#d97706'}">${rtdbOk?'Realtime Database Connected':'Not Connected — Local Storage Only'}</div>
+        <div style="font-size:12px;color:#6b7280;margin-top:3px">${rtdbOk?'Live sync active across all devices':'Data saved on this device only'}</div>
       </div>
     </div>
   </div>
@@ -907,12 +765,12 @@ function pgDashboard(filter){
     const tradeNo=`<span class="trade-no" style="cursor:pointer;text-decoration:underline" onclick="showPage('tradeView','${it.id}')">${it.tradeNo||'—'}</span>`;
     rows+=`<tr>
       <td data-label="Trade No">${tradeNo}</td>
-      <td data-label="Our Item">
+      <td>
         <div style="font-size:10px;color:#9ca3af;margin-bottom:1px">Our Item</div>
         <div style="font-weight:600">${it.brand||'—'} ${it.model||''}</div>
         <div style="font-family:monospace;font-size:11px;color:#6b7280">${it.serial||t&&t.serial||'—'}</div>
       </td>
-      <td data-label="Trade-In">
+      <td>
         <div style="font-size:10px;color:#059669;font-weight:600;margin-bottom:1px">Trade-In</div>
         <div style="font-weight:600">${tld.brand||'—'} ${tld.model||''}</div>
         <div style="font-family:monospace;font-size:11px;color:#6b7280">${tld.serial||'—'}</div>
@@ -1025,7 +883,7 @@ function pgAllTrades(filter){
       ?`<td>${stepBtn}</td>${editStep}<td><button class="btn-view" onclick="showPage('tradeView','${it.id}')">View</button></td>${delBtn}`
       :`<td><button class="btn-view" onclick="showPage('tradeView','${it.id}')">View</button></td>`;
     rows+=`<tr>
-      <td data-label="Trade No"><span class="trade-no" style="cursor:pointer;text-decoration:underline" onclick="showPage('tradeView','${it.id}')">${it.tradeNo||'—'}</span></td>
+      <td><span class="trade-no" style="cursor:pointer;text-decoration:underline" onclick="showPage('tradeView','${it.id}')">${it.tradeNo||'—'}</span></td>
       <td>
         <div style="font-size:10px;color:#9ca3af;margin-bottom:2px">Our Item</div>
         <div style="font-weight:600;font-size:13px">${it.brand||'—'} ${it.model||''}</div>
@@ -1348,12 +1206,12 @@ function pgStep1(){
       ?`<td><button class="btn-edit" onclick="openEditItem('${it.id}')">✎ Edit</button></td><td><button class="btn-del" onclick="openDelItem('${it.id}')">🗑</button></td>`
       :'';
     rows+=`<tr>
-      <td data-label="Trade No"><span class="trade-no">${it.tradeNo||'—'}</span></td>
-      <td data-label="Serial">${it.serial}</td>
-      <td data-label="Brand">${it.brand}</td>
-      <td data-label="Model">${it.model}</td>
-      <td data-label="Added">${fmtDate(it.addedAt)}</td>
-      <td data-label="Status"><span class="badge-pending">Pending</span></td>
+      <td><span class="trade-no">${it.tradeNo||'—'}</span></td>
+      <td>${it.serial}</td>
+      <td>${it.brand}</td>
+      <td>${it.model}</td>
+      <td>${fmtDate(it.addedAt)}</td>
+      <td><span class="badge-pending">Pending</span></td>
       ${actCells}
     </tr>`;
   });
@@ -1471,7 +1329,7 @@ function pgStep2(){
       :'';
     const tl=t.tradedLaptop||{};
     aRows+=`<tr>
-      <td data-label="Trade No"><span class="trade-no" style="cursor:pointer;text-decoration:underline" onclick="showPage('tradeView','${it.id}')">${it.tradeNo||'—'}</span></td>
+      <td><span class="trade-no" style="cursor:pointer;text-decoration:underline" onclick="showPage('tradeView','${it.id}')">${it.tradeNo||'—'}</span></td>
       <td>
         <div style="font-size:11px;color:#9ca3af;margin-bottom:2px">Our Item</div>
         <div style="font-weight:600">${it.brand||'—'} ${it.model||''}</div>
@@ -1699,7 +1557,7 @@ function pgStep3(){
       :'';
     const tl2=t.tradedLaptop||{};
     cRows+=`<tr>
-      <td data-label="Trade No"><span class="trade-no" style="cursor:pointer;text-decoration:underline" onclick="showPage('tradeView','${it.id}')">${it.tradeNo||'—'}</span></td>
+      <td><span class="trade-no" style="cursor:pointer;text-decoration:underline" onclick="showPage('tradeView','${it.id}')">${it.tradeNo||'—'}</span></td>
       <td>
         <div style="font-size:11px;color:#9ca3af;margin-bottom:2px">Our Item</div>
         <div style="font-weight:600">${it.brand||'—'} ${it.model||''}</div>
