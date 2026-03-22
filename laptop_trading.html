@@ -323,10 +323,109 @@ tr:hover td{background:#f9fafb;}
 .back-btn{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:#1a56db;cursor:pointer;background:none;border:none;font-family:'Inter',sans-serif;margin-bottom:16px;padding:0;}
 .back-btn:hover{text-decoration:underline;}
 
-@media(max-width:900px){.sidebar{width:200px;}.main{margin-left:200px;padding:20px;}.stat-row{flex-wrap:wrap;}.scard{min-width:calc(50% - 8px);}.fgrid{grid-template-columns:1fr;}}
+/* ── MOBILE HAMBURGER BUTTON ── */
+.mob-topbar{display:none;position:fixed;top:0;left:0;right:0;height:54px;background:#fff;border-bottom:1px solid #e2e5ea;z-index:60;align-items:center;padding:0 16px;gap:12px;}
+.mob-menu-btn{background:none;border:none;cursor:pointer;padding:6px;display:flex;flex-direction:column;gap:5px;flex-shrink:0;}
+.mob-menu-btn span{display:block;width:22px;height:2px;background:#1a1d23;border-radius:2px;transition:all .2s;}
+.mob-brand{font-size:16px;font-weight:700;color:#1a1d23;flex:1;}
+.mob-fb-status{font-size:10px;color:#6b7280;}
+
+/* ── SIDEBAR OVERLAY ── */
+.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:55;}
+.sidebar-overlay.open{display:block;}
+
+@media(max-width:768px){
+  /* show mobile topbar */
+  .mob-topbar{display:flex;}
+
+  /* sidebar slides in from left */
+  .sidebar{transform:translateX(-100%);transition:transform .25s ease;z-index:56;width:240px;}
+  .sidebar.open{transform:translateX(0);}
+
+  /* main content fills full width, padded below topbar */
+  .main{margin-left:0;padding:70px 14px 100px;min-height:100vh;}
+
+  /* stat cards: 2 per row */
+  .stat-row{flex-wrap:wrap;gap:10px;}
+  .scard{min-width:calc(50% - 5px);padding:14px 16px;}
+  .scard-val{font-size:24px;}
+
+  /* tables: card-style rows on mobile */
+  .tbl-wrap table thead{display:none;}
+  .tbl-wrap table,
+  .tbl-wrap tbody,
+  .tbl-wrap tr{display:block;width:100%;}
+  .tbl-wrap tr{background:#fff;border:1px solid #e2e5ea;border-radius:10px;margin-bottom:10px;padding:12px 14px;}
+  .tbl-wrap td{display:flex;justify-content:space-between;align-items:flex-start;padding:5px 0;border:none;font-size:13px;gap:8px;}
+  .tbl-wrap td::before{content:attr(data-label);font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;flex-shrink:0;padding-top:2px;min-width:80px;}
+  .tbl-wrap td:last-child{padding-top:10px;border-top:1px solid #f1f3f5;margin-top:4px;}
+  .tbl-wrap tr:hover td{background:transparent;}
+  .no-data{padding:32px;}
+
+  /* date filter bar */
+  .date-bar{flex-wrap:wrap;gap:6px;padding:10px 14px;}
+  .date-bar input[type=date]{font-size:12px;}
+  .showing{margin-left:0;width:100%;}
+
+  /* filter tabs wrap */
+  .filter-tabs{flex-wrap:wrap;}
+  .ftab{font-size:11px;padding:5px 10px;}
+
+  /* tpanel head stacks */
+  .tpanel-head{flex-direction:column;align-items:flex-start;gap:8px;padding:12px 14px;}
+
+  /* form grid single col */
+  .fgrid{grid-template-columns:1fr;}
+  .fgroup.full{grid-column:1;}
+  .fpanel{padding:16px 14px;}
+
+  /* steps bar scrollable */
+  .steps-bar{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+  .step-item{min-width:130px;padding:12px;}
+
+  /* preview grid single col */
+  .pgrid{grid-template-columns:1fr 1fr;}
+
+  /* modal full-width */
+  .modal{width:95vw;padding:20px 16px;max-height:90vh;overflow-y:auto;}
+
+  /* login card */
+  .login-card{padding:28px 20px;}
+
+  /* topbar */
+  .topbar{flex-wrap:wrap;gap:8px;}
+  .page-title{font-size:17px;}
+  .btn-new{font-size:12px;padding:8px 14px;}
+
+  /* guest banner */
+  #guestBanner{left:0 !important;}
+
+  /* employee grid */
+  .emp-grid{grid-template-columns:1fr 1fr;}
+
+  /* actions buttons smaller */
+  .acts{flex-wrap:wrap;}
+  .btn-step,.btn-step2,.btn-step3,.btn-edit{font-size:11px;padding:5px 10px;}
+}
+
+@media(max-width:400px){
+  .scard{min-width:100%;}
+  .emp-grid{grid-template-columns:1fr;}
+  .pgrid{grid-template-columns:1fr;}
+}
 </style>
 </head>
 <body>
+
+<!-- MOBILE TOPBAR (shown only on small screens) -->
+<div class="mob-topbar" id="mobTopbar" style="display:none">
+  <button class="mob-menu-btn" onclick="toggleSidebar()" aria-label="Menu">
+    <span></span><span></span><span></span>
+  </button>
+  <div class="mob-brand">🖥 LapTrade</div>
+  <div class="mob-fb-status" id="mobFbStatus"></div>
+</div>
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
 
 <!-- LOGIN -->
 <div id="loginScreen">
@@ -413,44 +512,38 @@ let store = (window._fbInitialData) ||
             {employees:[],items:[],trades:[],tradeCounter:0};
 
 function save(){
-  // Always save to localStorage (offline backup)
-  localStorage.setItem('ltpStore', JSON.stringify(store));
   const snap = JSON.parse(JSON.stringify(store));
-  // 1️⃣ Save to Realtime Database (primary)
+  // Always save to localStorage (offline backup)
+  localStorage.setItem('ltpStore', JSON.stringify(snap));
+  // 1️⃣ Save to Realtime Database (primary) — async, non-blocking
   if(window._fb && window._fb.rtdbReady){
-    window._fb.rtdbSave(snap);
+    window._fb.rtdbSave(snap).catch(e=>console.warn('RTDB save error:',e));
   }
-  // 2️⃣ Also save to Firestore (secondary)
+  // 2️⃣ Mirror to Firestore (secondary)
   if(window._fb && window._fb.firebaseReady){
     window._fb.fbSave(snap);
   }
 }
 
-// Real-time listener: RTDB preferred, Firestore as fallback
-// Use a flag to avoid double-updating
-let _rtdbListening = false;
-if(window._fb && window._fb.rtdbReady){
-  _rtdbListening = true;
-  window._fb.rtdbListen((data) => {
-    const newStr = JSON.stringify(data);
-    if(newStr === JSON.stringify(store)) return; // no change
-    store = data;
-    localStorage.setItem('ltpStore', JSON.stringify(store));
-    if(typeof currentUser !== 'undefined' && currentUser && typeof currentPage !== 'undefined'){
-      showPage(currentPage);
-    }
-  });
-}
-if(!_rtdbListening && window._fb && window._fb.firebaseReady){
-  window._fb.fbListen((data) => {
+// Real-time listener — attached once after login (see startApp)
+let _realtimeListenerAttached = false;
+function attachRealtimeListener(){
+  if(_realtimeListenerAttached) return;
+  _realtimeListenerAttached = true;
+  function onRemoteData(data){
     const newStr = JSON.stringify(data);
     if(newStr === JSON.stringify(store)) return;
     store = data;
     localStorage.setItem('ltpStore', JSON.stringify(store));
-    if(typeof currentUser !== 'undefined' && currentUser && typeof currentPage !== 'undefined'){
-      showPage(currentPage);
-    }
-  });
+    if(currentUser && currentPage) showPage(currentPage);
+  }
+  if(window._fb && window._fb.rtdbReady){
+    window._fb.rtdbListen(onRemoteData);
+    console.log("✅ RTDB realtime listener attached");
+  } else if(window._fb && window._fb.firebaseReady){
+    window._fb.fbListen(onRemoteData);
+    console.log("✅ Firestore realtime listener attached");
+  }
 }
 const BRANDS = ['Apple','Dell','HP','Lenovo','Asus','Acer','Samsung','Microsoft','MSI','Toshiba','Sony','LG','Huawei','Other'];
 function fmtDate(d){ return new Date(d).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}); }
@@ -528,6 +621,15 @@ function startApp(){
   document.getElementById('sbUser').textContent=currentUser.name;
   document.getElementById('sbRole').textContent=currentUser.role==='admin'?'Administrator':currentUser.role==='employee'?'Employee':'View Only';
   buildNav(); showPage('dashboard');
+  attachRealtimeListener();
+  handleMobTopbar();
+  // Update mobile fb status
+  const mobFb = document.getElementById('mobFbStatus');
+  if(mobFb){
+    if(window._rtdbReady){ mobFb.textContent='🔥 Live'; mobFb.style.color='#059669'; }
+    else if(window._fbReady){ mobFb.textContent='🗄️ Sync'; mobFb.style.color='#1a56db'; }
+    else { mobFb.textContent='💾 Local'; mobFb.style.color='#d97706'; }
+  }
   const banner=document.getElementById('guestBanner');
   if(banner) banner.style.display=currentUser.role==='guest'?'flex':'none';
   // Show Firebase connection status
@@ -546,6 +648,31 @@ function startApp(){
   }
 }
 document.getElementById('loginPass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+
+// ═══════════════════════════════════════════════
+// MOBILE SIDEBAR TOGGLE
+// ═══════════════════════════════════════════════
+function toggleSidebar(){
+  document.querySelector('.sidebar').classList.toggle('open');
+  document.getElementById('sidebarOverlay').classList.toggle('open');
+}
+function closeSidebar(){
+  document.querySelector('.sidebar').classList.remove('open');
+  document.getElementById('sidebarOverlay').classList.remove('open');
+}
+// Close sidebar when a nav item is tapped on mobile
+document.addEventListener('click', e=>{
+  if(e.target.closest('.nav-item') && window.innerWidth<=768) closeSidebar();
+});
+// Show/hide mobile topbar based on screen size
+function handleMobTopbar(){
+  const mob = document.getElementById('mobTopbar');
+  if(!mob) return;
+  if(window.innerWidth<=768){ mob.style.display='flex'; }
+  else { mob.style.display='none'; document.querySelector('.sidebar').classList.remove('open'); document.getElementById('sidebarOverlay').classList.remove('open'); }
+}
+window.addEventListener('resize', handleMobTopbar);
+handleMobTopbar();
 
 // ═══════════════════════════════════════════════
 // SETTINGS PAGE — Firebase & GitHub Guide
@@ -763,21 +890,21 @@ function pgDashboard(filter){
     const statusBadge=t?getStatusBadge(t):'<span class="badge-pending">Pending</span>';
     const tradeNo=`<span class="trade-no" style="cursor:pointer;text-decoration:underline" onclick="showPage('tradeView','${it.id}')">${it.tradeNo||'—'}</span>`;
     rows+=`<tr>
-      <td>${tradeNo}</td>
-      <td>
+      <td data-label="Trade No">${tradeNo}</td>
+      <td data-label="Our Item">
         <div style="font-size:10px;color:#9ca3af;margin-bottom:1px">Our Item</div>
         <div style="font-weight:600">${it.brand||'—'} ${it.model||''}</div>
         <div style="font-family:monospace;font-size:11px;color:#6b7280">${it.serial||t&&t.serial||'—'}</div>
       </td>
-      <td>
+      <td data-label="Trade-In">
         <div style="font-size:10px;color:#059669;font-weight:600;margin-bottom:1px">Trade-In</div>
         <div style="font-weight:600">${tld.brand||'—'} ${tld.model||''}</div>
         <div style="font-family:monospace;font-size:11px;color:#6b7280">${tld.serial||'—'}</div>
       </td>
-      <td>${t?t.employeeName||'—':'—'}</td>
-      <td>${t&&t.amountRecorded?fmtAmt(t.amount):'—'}</td>
-      <td>${fmtDate(t?t.tradedAt:it.addedAt)}</td>
-      <td>${statusBadge}</td>
+      <td data-label="Employee">${t?t.employeeName||'—':'—'}</td>
+      <td data-label="Amount">${t&&t.amountRecorded?fmtAmt(t.amount):'—'}</td>
+      <td data-label="Date">${fmtDate(t?t.tradedAt:it.addedAt)}</td>
+      <td data-label="Status">${statusBadge}</td>
     </tr>`;
   });
   const colspan=7;
@@ -882,7 +1009,7 @@ function pgAllTrades(filter){
       ?`<td>${stepBtn}</td>${editStep}<td><button class="btn-view" onclick="showPage('tradeView','${it.id}')">View</button></td>${delBtn}`
       :`<td><button class="btn-view" onclick="showPage('tradeView','${it.id}')">View</button></td>`;
     rows+=`<tr>
-      <td><span class="trade-no" style="cursor:pointer;text-decoration:underline" onclick="showPage('tradeView','${it.id}')">${it.tradeNo||'—'}</span></td>
+      <td data-label="Trade No"><span class="trade-no" style="cursor:pointer;text-decoration:underline" onclick="showPage('tradeView','${it.id}')">${it.tradeNo||'—'}</span></td>
       <td>
         <div style="font-size:10px;color:#9ca3af;margin-bottom:2px">Our Item</div>
         <div style="font-weight:600;font-size:13px">${it.brand||'—'} ${it.model||''}</div>
@@ -1205,12 +1332,12 @@ function pgStep1(){
       ?`<td><button class="btn-edit" onclick="openEditItem('${it.id}')">✎ Edit</button></td><td><button class="btn-del" onclick="openDelItem('${it.id}')">🗑</button></td>`
       :'';
     rows+=`<tr>
-      <td><span class="trade-no">${it.tradeNo||'—'}</span></td>
-      <td>${it.serial}</td>
-      <td>${it.brand}</td>
-      <td>${it.model}</td>
-      <td>${fmtDate(it.addedAt)}</td>
-      <td><span class="badge-pending">Pending</span></td>
+      <td data-label="Trade No"><span class="trade-no">${it.tradeNo||'—'}</span></td>
+      <td data-label="Serial">${it.serial}</td>
+      <td data-label="Brand">${it.brand}</td>
+      <td data-label="Model">${it.model}</td>
+      <td data-label="Added">${fmtDate(it.addedAt)}</td>
+      <td data-label="Status"><span class="badge-pending">Pending</span></td>
       ${actCells}
     </tr>`;
   });
@@ -1328,7 +1455,7 @@ function pgStep2(){
       :'';
     const tl=t.tradedLaptop||{};
     aRows+=`<tr>
-      <td><span class="trade-no" style="cursor:pointer;text-decoration:underline" onclick="showPage('tradeView','${it.id}')">${it.tradeNo||'—'}</span></td>
+      <td data-label="Trade No"><span class="trade-no" style="cursor:pointer;text-decoration:underline" onclick="showPage('tradeView','${it.id}')">${it.tradeNo||'—'}</span></td>
       <td>
         <div style="font-size:11px;color:#9ca3af;margin-bottom:2px">Our Item</div>
         <div style="font-weight:600">${it.brand||'—'} ${it.model||''}</div>
@@ -1556,7 +1683,7 @@ function pgStep3(){
       :'';
     const tl2=t.tradedLaptop||{};
     cRows+=`<tr>
-      <td><span class="trade-no" style="cursor:pointer;text-decoration:underline" onclick="showPage('tradeView','${it.id}')">${it.tradeNo||'—'}</span></td>
+      <td data-label="Trade No"><span class="trade-no" style="cursor:pointer;text-decoration:underline" onclick="showPage('tradeView','${it.id}')">${it.tradeNo||'—'}</span></td>
       <td>
         <div style="font-size:11px;color:#9ca3af;margin-bottom:2px">Our Item</div>
         <div style="font-weight:600">${it.brand||'—'} ${it.model||''}</div>
