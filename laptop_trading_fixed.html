@@ -1,0 +1,1728 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LapTrade Pro — Laptop Trading System</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!-- ═══ FIREBASE SDK ═══ -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, collection, doc, setDoc, getDoc, onSnapshot, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+// ╔══════════════════════════════════════════════════╗
+// ║  PASTE YOUR FIREBASE CONFIG HERE                 ║
+// ║  Firebase Console → Project Settings → Your App ║
+// ╚══════════════════════════════════════════════════╝
+const firebaseConfig = {
+  apiKey:            "AIzaSyDCCDqa3cETn2gpi36mgLO3aSkA-U8nR_s",
+  authDomain:        "trade-411ee.firebaseapp.com",
+  projectId:         "trade-411ee",
+  storageBucket:     "trade-411ee.firebasestorage.app",
+  messagingSenderId: "326734073228",
+  appId:             "1:326734073228:web:d67c19df7bf8f8097bdaa9"
+};
+
+// Initialize Firebase
+let db = null;
+let firebaseReady = false;
+
+try {
+  const app = initializeApp(firebaseConfig);
+  db = getFirestore(app);
+  firebaseReady = true;
+  console.log("✅ Firebase connected");
+} catch(e) {
+  console.warn("⚠️ Firebase not configured. Using localStorage only.", e.message);
+}
+
+// ── Firestore helpers ──────────────────────────────
+const STORE_DOC = "laptrade/store";
+
+async function fbSave(data) {
+  if (!firebaseReady || !db) return;
+  try {
+    await setDoc(doc(db, "laptrade", "store"), data);
+  } catch(e) { console.warn("Firebase save failed:", e.message); }
+}
+
+async function fbLoad() {
+  if (!firebaseReady || !db) return null;
+  try {
+    const snap = await getDoc(doc(db, "laptrade", "store"));
+    return snap.exists() ? snap.data() : null;
+  } catch(e) { console.warn("Firebase load failed:", e.message); return null; }
+}
+
+function fbListen(callback) {
+  if (!firebaseReady || !db) return;
+  onSnapshot(doc(db, "laptrade", "store"), (snap) => {
+    if (snap.exists()) callback(snap.data());
+  });
+}
+
+// Expose to global scope for main script
+window._fb = { fbSave, fbLoad, fbListen, firebaseReady };
+
+// Load data from Firestore on startup
+window.addEventListener('DOMContentLoaded', async () => {
+  // Update fbStatus UI indicator
+  const fbStatusEl = document.getElementById('fbStatus');
+
+  if (!firebaseReady) {
+    if (fbStatusEl) fbStatusEl.textContent = '⚠ Offline mode';
+    window._fbReady = false;
+    window.dispatchEvent(new Event('fbDataReady'));
+    return;
+  }
+
+  if (fbStatusEl) fbStatusEl.textContent = '⏳ Connecting...';
+
+  try {
+    const fbData = await fbLoad();
+    if (fbData && fbData.tradeCounter !== undefined) {
+      window._fbInitialData = fbData;
+      console.log("✅ Data loaded from Firestore");
+    }
+    if (fbStatusEl) { fbStatusEl.textContent = '🟢 Cloud sync ON'; fbStatusEl.style.color = '#059669'; }
+  } catch(e) {
+    console.warn("Firebase load failed:", e.message);
+    if (fbStatusEl) { fbStatusEl.textContent = '⚠ Sync failed'; fbStatusEl.style.color = '#d97706'; }
+  }
+
+  // Show Firebase status in UI
+  window._fbReady = firebaseReady;
+  // Signal main script that Firebase is ready
+  window.dispatchEvent(new Event('fbDataReady'));
+});
+</script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Inter',sans-serif;background:#f4f5f7;color:#1a1d23;min-height:100vh;}
+
+/* ── LOGIN ── */
+#loginScreen{position:fixed;inset:0;background:#f4f5f7;display:flex;align-items:center;justify-content:center;z-index:100;}
+.login-card{background:#fff;border:1px solid #e2e5ea;border-radius:12px;padding:44px 40px;width:400px;max-width:95vw;box-shadow:0 4px 24px rgba(0,0,0,.07);}
+.login-brand{display:flex;align-items:center;gap:10px;margin-bottom:6px;}
+.login-brand-icon{width:36px;height:36px;background:#1a56db;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px;font-weight:700;}
+.login-brand-name{font-size:20px;font-weight:700;color:#1a1d23;}
+.login-tagline{font-size:13px;color:#6b7280;margin-bottom:32px;}
+.login-role-tabs{display:flex;background:#f4f5f7;border-radius:8px;padding:3px;gap:3px;margin-bottom:24px;}
+.role-tab{flex:1;padding:8px;border:none;background:transparent;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;color:#6b7280;transition:all .15s;}
+.role-tab.active{background:#fff;color:#1a1d23;box-shadow:0 1px 4px rgba(0,0,0,.1);}
+.lbl{font-size:12px;font-weight:600;color:#374151;margin-bottom:6px;display:block;}
+.linput{width:100%;border:1px solid #d1d5db;border-radius:8px;padding:10px 14px;font-size:14px;color:#1a1d23;margin-bottom:16px;outline:none;transition:border-color .15s;font-family:'Inter',sans-serif;}
+.linput:focus{border-color:#1a56db;box-shadow:0 0 0 3px rgba(26,86,219,.1);}
+.lbtn{width:100%;background:#1a56db;color:#fff;border:none;border-radius:8px;padding:12px;font-size:14px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;transition:background .15s;}
+.lbtn:hover{background:#1648c0;}
+.lerr{color:#dc2626;font-size:13px;margin-top:10px;display:none;}
+
+/* ── LAYOUT ── */
+#app{display:none;min-height:100vh;}
+.shell{display:flex;min-height:100vh;}
+.sidebar{width:220px;background:#fff;border-right:1px solid #e2e5ea;display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;z-index:50;}
+.sb-brand{padding:20px 18px 16px;border-bottom:1px solid #e2e5ea;display:flex;align-items:center;gap:10px;}
+.sb-icon{width:32px;height:32px;background:#1a56db;border-radius:7px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:15px;flex-shrink:0;}
+.sb-name{font-size:15px;font-weight:700;color:#1a1d23;}
+.sb-user{padding:12px 18px;border-bottom:1px solid #e2e5ea;}
+.sb-uname{font-size:13px;font-weight:600;color:#1a1d23;}
+.sb-urole{font-size:11px;color:#6b7280;margin-top:1px;}
+.sb-nav{flex:1;padding:10px 10px;display:flex;flex-direction:column;gap:2px;}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:7px;cursor:pointer;font-size:13px;font-weight:500;color:#6b7280;border:none;background:transparent;width:100%;text-align:left;transition:all .15s;}
+.nav-item:hover{background:#f4f5f7;color:#1a1d23;}
+.nav-item.active{background:#eff6ff;color:#1a56db;font-weight:600;}
+.nav-section{font-size:10px;font-weight:700;color:#9ca3af;letter-spacing:1.2px;text-transform:uppercase;padding:12px 12px 4px;}
+.sb-footer{padding:12px 10px;border-top:1px solid #e2e5ea;}
+.sb-logout{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:7px;cursor:pointer;font-size:13px;font-weight:500;color:#dc2626;border:none;background:transparent;width:100%;transition:background .15s;}
+.sb-logout:hover{background:#fef2f2;}
+
+/* ── MAIN ── */
+.main{margin-left:220px;flex:1;padding:28px 32px;min-height:100vh;}
+.topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;}
+.page-title{font-size:20px;font-weight:700;color:#1a1d23;}
+.page-sub{font-size:13px;color:#6b7280;margin-top:2px;}
+
+/* ── STAT CARDS ── */
+.stat-row{display:flex;gap:16px;margin-bottom:24px;}
+.scard{background:#fff;border:1px solid #e2e5ea;border-radius:10px;padding:18px 22px;flex:1;min-width:0;}
+.scard-label{font-size:11px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;}
+.scard-val{font-size:30px;font-weight:700;line-height:1;}
+.scard-val.blue{color:#1a56db;}
+.scard-val.orange{color:#d97706;}
+.scard-val.green{color:#059669;}
+.scard-val.red{color:#dc2626;}
+.scard-val.gray{color:#374151;}
+
+/* ── TABLE PANEL ── */
+.tpanel{background:#fff;border:1px solid #e2e5ea;border-radius:10px;overflow:hidden;margin-bottom:24px;}
+.tpanel-head{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #e2e5ea;flex-wrap:wrap;gap:10px;}
+.tpanel-title{font-size:15px;font-weight:700;color:#1a1d23;}
+.filter-tabs{display:flex;gap:6px;flex-wrap:wrap;}
+.ftab{padding:6px 14px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid #e2e5ea;background:#f9fafb;color:#6b7280;transition:all .15s;}
+.ftab.active{background:#1a56db;color:#fff;border-color:#1a56db;}
+.btn-new{background:#1a56db;color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;transition:background .15s;display:flex;align-items:center;gap:6px;}
+.btn-new:hover{background:#1648c0;}
+
+/* date filter bar */
+.date-bar{display:flex;align-items:center;gap:10px;padding:10px 20px;background:#f9fafb;border-bottom:1px solid #e2e5ea;font-size:13px;color:#6b7280;}
+.date-bar input[type=date]{border:1px solid #d1d5db;border-radius:6px;padding:5px 10px;font-size:13px;color:#374151;background:#fff;font-family:'Inter',sans-serif;}
+.showing{margin-left:auto;font-size:12px;color:#9ca3af;}
+
+/* TABLE */
+.tbl-wrap{overflow-x:auto;}
+table{width:100%;border-collapse:collapse;}
+th{padding:10px 16px;font-size:11px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:.6px;text-align:left;background:#f9fafb;border-bottom:1px solid #e2e5ea;white-space:nowrap;}
+td{padding:13px 16px;font-size:13px;color:#1a1d23;border-bottom:1px solid #f1f3f5;vertical-align:middle;}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:#f9fafb;}
+.no-data{text-align:center;padding:48px;color:#9ca3af;font-size:14px;}
+
+/* STATUS BADGES */
+.badge-pending{display:inline-flex;align-items:center;gap:5px;background:#fffbeb;color:#d97706;border:1px solid #fde68a;border-radius:20px;padding:3px 10px;font-size:12px;font-weight:500;}
+.badge-pending::before{content:'';width:6px;height:6px;border-radius:50%;background:#d97706;display:inline-block;}
+.badge-done{display:inline-flex;align-items:center;gap:5px;background:#ecfdf5;color:#059669;border:1px solid #a7f3d0;border-radius:20px;padding:3px 10px;font-size:12px;font-weight:500;}
+.badge-done::before{content:'';width:6px;height:6px;border-radius:50%;background:#059669;display:inline-block;}
+.badge-assigned{display:inline-flex;align-items:center;gap:5px;background:#eff6ff;color:#1a56db;border:1px solid #bfdbfe;border-radius:20px;padding:3px 10px;font-size:12px;font-weight:500;}
+.badge-assigned::before{content:'';width:6px;height:6px;border-radius:50%;background:#1a56db;display:inline-block;}
+.badge-traded{display:inline-flex;align-items:center;gap:5px;background:#eff6ff;color:#1a56db;border:1px solid #bfdbfe;border-radius:20px;padding:3px 10px;font-size:12px;font-weight:600;}
+.badge-traded::before{content:'';width:6px;height:6px;border-radius:50%;background:#1a56db;display:inline-block;}
+.badge-payment{display:inline-flex;align-items:center;gap:5px;background:#ecfdf5;color:#059669;border:1px solid #a7f3d0;border-radius:20px;padding:3px 10px;font-size:12px;font-weight:600;}
+.badge-payment::before{content:'';width:6px;height:6px;border-radius:50%;background:#059669;display:inline-block;}
+
+/* ACTION BUTTONS */
+.btn-step{background:#1a56db;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;white-space:nowrap;}
+.btn-step:hover{background:#1648c0;}
+.btn-step2{background:#7c3aed;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;white-space:nowrap;}
+.btn-step2:hover{background:#6d28d9;}
+.btn-step3{background:#059669;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;white-space:nowrap;}
+.btn-step3:hover{background:#047857;}
+.btn-edit{background:#fff;color:#374151;border:1px solid #d1d5db;border-radius:6px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;}
+.btn-edit:hover{background:#f4f5f7;}
+.btn-del{background:none;border:none;cursor:pointer;color:#9ca3af;font-size:16px;padding:4px 8px;transition:color .15s;}
+.btn-del:hover{color:#dc2626;}
+.btn-view{background:none;border:none;cursor:pointer;color:#1a56db;font-size:13px;font-weight:500;padding:4px 8px;font-family:'Inter',sans-serif;}
+.btn-view:hover{text-decoration:underline;}
+.acts{display:flex;align-items:center;gap:6px;}
+
+/* FORM PANEL */
+.fpanel{background:#fff;border:1px solid #e2e5ea;border-radius:10px;padding:24px;margin-bottom:20px;}
+.fpanel-title{font-size:14px;font-weight:700;color:#1a1d23;margin-bottom:18px;display:flex;align-items:center;gap:8px;}
+.fpanel-title .step-badge{background:#1a56db;color:#fff;border-radius:5px;padding:2px 8px;font-size:11px;font-weight:700;}
+.fgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.fgroup{display:flex;flex-direction:column;gap:5px;}
+.fgroup.full{grid-column:1/-1;}
+.flabel{font-size:12px;font-weight:600;color:#374151;}
+.finput{border:1px solid #d1d5db;border-radius:7px;padding:9px 12px;font-size:13px;color:#1a1d23;font-family:'Inter',sans-serif;outline:none;width:100%;background:#fff;transition:border-color .15s;}
+.finput:focus{border-color:#1a56db;box-shadow:0 0 0 3px rgba(26,86,219,.08);}
+.finput:disabled{background:#f9fafb;color:#9ca3af;cursor:not-allowed;}
+.factions{margin-top:16px;display:flex;gap:10px;}
+.fbtn{padding:9px 20px;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;border:none;font-family:'Inter',sans-serif;transition:all .15s;}
+.fbtn-primary{background:#1a56db;color:#fff;}
+.fbtn-primary:hover{background:#1648c0;}
+.fbtn-outline{background:#fff;color:#374151;border:1px solid #d1d5db;}
+.fbtn-outline:hover{background:#f4f5f7;}
+.fbtn-danger{background:#dc2626;color:#fff;}
+.fbtn-danger:hover{background:#b91c1c;}
+
+/* STEPS BAR */
+.steps-bar{display:flex;gap:0;background:#fff;border:1px solid #e2e5ea;border-radius:10px;overflow:hidden;margin-bottom:20px;}
+.step-item{flex:1;padding:14px 16px;display:flex;align-items:center;gap:10px;border-right:1px solid #e2e5ea;}
+.step-item:last-child{border-right:none;}
+.step-num-bubble{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;}
+.step-item.done .step-num-bubble{background:#ecfdf5;color:#059669;}
+.step-item.active .step-num-bubble{background:#1a56db;color:#fff;}
+.step-item.idle .step-num-bubble{background:#f4f5f7;color:#9ca3af;}
+.step-text{}
+.step-label-text{font-size:13px;font-weight:600;}
+.step-item.done .step-label-text{color:#059669;}
+.step-item.active .step-label-text{color:#1a56db;}
+.step-item.idle .step-label-text{color:#9ca3af;}
+.step-sub-text{font-size:11px;color:#9ca3af;margin-top:1px;}
+
+/* ALERT */
+.alert{border-radius:8px;padding:11px 16px;margin-bottom:14px;font-size:13px;display:none;font-weight:500;}
+.alert-ok{background:#ecfdf5;border:1px solid #a7f3d0;color:#059669;}
+.alert-err{background:#fef2f2;border:1px solid #fecaca;color:#dc2626;}
+
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:200;display:none;align-items:center;justify-content:center;}
+.modal-overlay.open{display:flex;}
+.modal{background:#fff;border-radius:12px;padding:28px;width:480px;max-width:95vw;box-shadow:0 20px 60px rgba(0,0,0,.15);animation:mIn .15s ease;}
+@keyframes mIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.modal-hdr{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px;}
+.modal-title{font-size:16px;font-weight:700;color:#1a1d23;}
+.modal-sub{font-size:12px;color:#6b7280;margin-top:2px;}
+.modal-x{background:none;border:none;color:#9ca3af;font-size:20px;cursor:pointer;line-height:1;padding:0;}
+.modal-x:hover{color:#374151;}
+.modal-foot{display:flex;gap:10px;margin-top:22px;justify-content:flex-end;}
+.modal-warn-text{font-size:14px;color:#374151;line-height:1.6;}
+.modal-warn-text .highlight{font-weight:600;color:#1a1d23;}
+.modal-warn-text .danger-note{display:block;margin-top:10px;color:#dc2626;font-size:13px;}
+
+/* EMP CARDS */
+.emp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;margin-bottom:20px;}
+.emp-card{background:#fff;border:1px solid #e2e5ea;border-radius:10px;padding:18px;position:relative;}
+.emp-avatar{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#1a56db,#7c3aed);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;color:#fff;margin-bottom:10px;}
+.emp-name{font-size:14px;font-weight:600;color:#1a1d23;}
+.emp-id{font-size:12px;color:#6b7280;margin-top:2px;}
+.emp-dept{font-size:11px;color:#9ca3af;margin-top:4px;}
+.emp-del-btn{position:absolute;top:12px;right:12px;background:none;border:none;color:#d1d5db;cursor:pointer;font-size:16px;transition:color .15s;}
+.emp-del-btn:hover{color:#dc2626;}
+
+/* TRADE NO CHIP */
+.trade-no{font-size:12px;font-weight:600;color:#1a56db;font-family:'Inter',monospace;}
+
+/* PREVIEW BOX */
+.preview-box{background:#f9fafb;border:1px solid #e2e5ea;border-radius:8px;padding:14px;margin-top:12px;display:none;}
+.preview-box.show{display:block;}
+.pgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+.pkey{font-size:10px;font-weight:600;color:#9ca3af;text-transform:uppercase;letter-spacing:.6px;margin-bottom:3px;}
+.pval{font-size:13px;font-weight:500;color:#1a1d23;}
+
+/* VIEW DETAIL PANEL */
+.view-panel{background:#fff;border:1px solid #e2e5ea;border-radius:10px;padding:24px;margin-bottom:20px;}
+.view-row{display:flex;gap:32px;flex-wrap:wrap;}
+.view-field{min-width:120px;}
+.vfkey{font-size:11px;font-weight:600;color:#9ca3af;text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px;}
+.vfval{font-size:14px;color:#1a1d23;font-weight:500;}
+.back-btn{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:#1a56db;cursor:pointer;background:none;border:none;font-family:'Inter',sans-serif;margin-bottom:16px;padding:0;}
+.back-btn:hover{text-decoration:underline;}
+
+@media(max-width:900px){.sidebar{width:200px;}.main{margin-left:200px;padding:20px;}.stat-row{flex-wrap:wrap;}.scard{min-width:calc(50% - 8px);}.fgrid{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="loginScreen">
+  <div class="login-card">
+    <div class="login-brand">
+      <div class="login-brand-icon">L</div>
+      <div class="login-brand-name">LapTrade Pro</div>
+    </div>
+    <div class="login-tagline">Laptop Trading Management System</div>
+    <div class="login-role-tabs">
+      <button class="role-tab active" onclick="setRole('admin')">🔐 Admin</button>
+      <button class="role-tab" onclick="setRole('employee')">👤 Employee</button>
+      <button class="role-tab" onclick="setRole('guest')">👁 View Only</button>
+    </div>
+    <div class="login-field-wrap" id="loginFieldId">
+      <label class="lbl">User ID</label>
+      <input class="linput" id="loginId" type="text" placeholder="Enter your ID" autocomplete="off">
+    </div>
+    <div class="login-field-wrap" id="loginFieldPw">
+      <label class="lbl">Password</label>
+      <input class="linput" id="loginPass" type="password" placeholder="Enter password">
+    </div>
+    <button class="lbtn" onclick="doLogin()">Sign In →</button>
+    <div class="lerr" id="loginErr">Invalid credentials. Please try again.</div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="sb-brand">
+        <div class="sb-icon">L</div>
+        <div>
+          <div class="sb-name">LapTrade</div>
+          <div id="fbStatus" style="font-size:10px;margin-top:2px;color:#9ca3af">⚙ Checking...</div>
+        </div>
+      </div>
+      <div class="sb-user">
+        <div class="sb-uname" id="sbUser">—</div>
+        <div class="sb-urole" id="sbRole">—</div>
+      </div>
+      <nav class="sb-nav" id="sbNav"></nav>
+      <div class="sb-footer">
+        <div class="sb-search">
+          <input class="sb-search-input" id="sbTradeSearch" placeholder="🔍 Search Trade No..." onkeydown="if(event.key==='Enter')searchTradeNo()">
+        </div>
+        <button class="sb-logout" onclick="doLogout()">⎋ Sign Out</button>
+      </div>
+    </aside>
+    <main class="main" id="mainContent"></main>
+    <div id="guestBanner" style="display:none;position:fixed;bottom:0;left:220px;right:0;background:#1a1d23;color:#fff;padding:10px 24px;font-size:12px;font-weight:600;z-index:100;align-items:center;gap:8px">
+      <span style="background:#d97706;border-radius:4px;padding:2px 8px;font-size:11px">VIEW ONLY</span>
+      You are logged in as Guest. Edit and Delete actions are disabled. 
+      <button onclick="doLogout()" style="margin-left:auto;background:#fff;color:#1a1d23;border:none;border-radius:6px;padding:4px 12px;cursor:pointer;font-weight:700;font-family:'Inter',sans-serif;font-size:12px">Login to Edit →</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modalOverlay" onclick="handleOverlay(event)">
+  <div class="modal">
+    <div class="modal-hdr">
+      <div>
+        <div class="modal-title" id="mTitle"></div>
+        <div class="modal-sub" id="mSub"></div>
+      </div>
+      <button class="modal-x" onclick="closeModal()">✕</button>
+    </div>
+    <div id="mBody"></div>
+    <div class="modal-foot" id="mFoot"></div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════
+// STORE & HELPERS
+// ═══════════════════════════════════════════════
+// Wait for Firebase module to finish before initializing the app
+// This fixes the race condition where _fbInitialData was always undefined
+window.addEventListener('fbDataReady', function initApp() {
+  window.removeEventListener('fbDataReady', initApp);
+  _startApp();
+});
+// Fallback: if fbDataReady never fires (e.g. script load error), start after 4s
+setTimeout(() => { if(typeof store === 'undefined') _startApp(); }, 4000);
+
+function _startApp() {
+
+const ADMIN = {id:'mandalkuntal',pass:'Buku@2016',name:'Kuntal Mandal',role:'admin'};
+
+// Load from Firestore if available, else localStorage
+let store = (window._fbInitialData) ||
+            JSON.parse(localStorage.getItem('ltpStore')||'null') ||
+            {employees:[],items:[],trades:[],tradeCounter:0};
+
+function save(){
+  // Always save to localStorage (offline backup)
+  localStorage.setItem('ltpStore', JSON.stringify(store));
+  // Also save to Firestore if connected
+  if(window._fb && window._fb.firebaseReady){
+    window._fb.fbSave(JSON.parse(JSON.stringify(store)));
+  }
+}
+
+// Real-time listener: update store when another device changes data
+// Now safe to check _fb since we waited for fbDataReady
+if(window._fb && window._fb.firebaseReady){
+  window._fb.fbListen((data) => {
+    store = data;
+    localStorage.setItem('ltpStore', JSON.stringify(store));
+    // Refresh current page view
+    if(typeof currentUser !== 'undefined' && currentUser && typeof currentPage !== 'undefined'){
+      showPage(currentPage);
+    }
+  });
+}
+const BRANDS = ['Apple','Dell','HP','Lenovo','Asus','Acer','Samsung','Microsoft','MSI','Toshiba','Sony','LG','Huawei','Other'];
+function fmtDate(d){ return new Date(d).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}); }
+function daysDiff(from,to){
+  if(!from) return null;
+  const ms=(to?new Date(to):new Date())-new Date(from);
+  return Math.floor(ms/(1000*60*60*24));
+}
+function daysBadge(from,to,done){
+  const d=daysDiff(from,to);
+  if(d===null) return '';
+  const color=done?'#059669':d>7?'#dc2626':d>3?'#d97706':'#1a56db';
+  const label=done?d+' day'+(d!==1?'s':'')+' taken':d+' day'+(d!==1?'s':'')+' pending';
+  return `<span style="display:inline-flex;align-items:center;gap:4px;background:${done?'#ecfdf5':d>7?'#fef2f2':d>3?'#fffbeb':'#eff6ff'};color:${color};border:1px solid ${done?'#a7f3d0':d>7?'#fecaca':d>3?'#fde68a':'#bfdbfe'};border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600;white-space:nowrap">⏱ ${label}</span>`;
+}
+function fmtAmt(a){ return '₹'+Number(a).toLocaleString('en-IN'); }
+function genTradeNo(){ const s=(store.tradeCounter||0)+1; store.tradeCounter=s; return 'LT/'+new Date().getFullYear()+'/'+String(s).padStart(4,'0'); }
+function isAdmin(){ return currentUser && currentUser.role==='admin'; }
+function isGuest(){ return currentUser && currentUser.role==='guest'; }
+function canEdit(){ return isAdmin(); }
+function getStatusBadge(trade){
+  if(!trade) return '<span class="badge-pending">Pending</span>';
+  if(trade.amountRecorded) return '<span class="badge-payment">✓ Payment Received</span>';
+  return '<span class="badge-traded">⇄ Traded</span>';
+}
+function showAlert(id,msg,type='ok'){ const a=document.getElementById(id); if(!a)return; a.className='alert alert-'+type; a.textContent=msg; a.style.display='block'; setTimeout(()=>a.style.display='none',4000); }
+
+// ═══════════════════════════════════════════════
+// AUTH
+// ═══════════════════════════════════════════════
+let currentUser=null, loginRole='admin';
+function setRole(r){
+  loginRole=r;
+  document.querySelectorAll('.role-tab').forEach((b,i)=>b.classList.toggle('active',(i===0&&r==='admin')||(i===1&&r==='employee')||(i===2&&r==='guest')));
+  const needsCreds = r!=='guest';
+  document.getElementById('loginFieldId').style.display = needsCreds?'block':'none';
+  document.getElementById('loginFieldPw').style.display = needsCreds?'block':'none';
+}
+function doLogin(){
+  const id=document.getElementById('loginId').value.trim();
+  const pw=document.getElementById('loginPass').value;
+  const err=document.getElementById('loginErr'); err.style.display='none';
+  if(loginRole==='guest'){
+    currentUser={id:'guest',name:'Guest',role:'guest'}; startApp(); return;
+  }
+  if(loginRole==='admin'){
+    if(id===ADMIN.id&&pw===ADMIN.pass){currentUser={id:ADMIN.id,name:ADMIN.name,role:'admin'};startApp();}
+    else err.style.display='block';
+  } else {
+    const emp=store.employees.find(e=>e.id===id&&e.pass===pw);
+    if(emp){currentUser={id:emp.id,name:emp.name,role:'employee'};startApp();}
+    else err.style.display='block';
+  }
+}
+function doLogout(){
+  currentUser=null;
+  loginRole='admin';
+  document.getElementById('app').style.display='none';
+  document.getElementById('loginScreen').style.display='flex';
+  document.getElementById('loginId').value='';
+  document.getElementById('loginPass').value='';
+  document.getElementById('loginErr').style.display='none';
+  // Reset role tabs to admin
+  document.querySelectorAll('.role-tab').forEach((b,i)=>b.classList.toggle('active',i===0));
+  // Show login fields
+  document.getElementById('loginFieldId').style.display='block';
+  document.getElementById('loginFieldPw').style.display='block';
+  // Hide guest banner
+  const banner=document.getElementById('guestBanner');
+  if(banner) banner.style.display='none';
+}
+function startApp(){
+  document.getElementById('loginScreen').style.display='none';
+  document.getElementById('app').style.display='block';
+  document.getElementById('sbUser').textContent=currentUser.name;
+  document.getElementById('sbRole').textContent=currentUser.role==='admin'?'Administrator':currentUser.role==='employee'?'Employee':'View Only';
+  buildNav(); showPage('dashboard');
+  const banner=document.getElementById('guestBanner');
+  if(banner) banner.style.display=currentUser.role==='guest'?'flex':'none';
+  // Show Firebase connection status
+  const fbSt=document.getElementById('fbStatus');
+  if(fbSt){
+    if(window._fbReady){
+      fbSt.innerHTML='🔥 Firebase Connected';
+      fbSt.style.color='#059669';
+    } else {
+      fbSt.innerHTML='💾 Local Storage Only';
+      fbSt.style.color='#d97706';
+    }
+  }
+}
+document.getElementById('loginPass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+
+// ═══════════════════════════════════════════════
+// SETTINGS PAGE — Firebase & GitHub Guide
+// ═══════════════════════════════════════════════
+function pgSettings(){
+  if(!isAdmin()) return '<div style="padding:40px;text-align:center"><div style="font-size:48px">🔒</div><div style="font-size:18px;font-weight:700;margin-top:12px">Admin Only</div></div>';
+  const fbConnected = window._fbReady;
+  return `
+  <div class="topbar"><div><div class="page-title">⚙ Firebase & GitHub Settings</div><div class="page-sub">Connect your app to the cloud</div></div></div>
+
+  <!-- Firebase Status Card -->
+  <div class="fpanel" style="border-left:4px solid ${fbConnected?'#059669':'#d97706'};margin-bottom:20px">
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px">
+      <div style="font-size:32px">${fbConnected?'🔥':'💾'}</div>
+      <div>
+        <div style="font-size:16px;font-weight:700;color:${fbConnected?'#059669':'#d97706'}">${fbConnected?'Firebase Connected — Real-time Sync Active':'Firebase Not Configured — Using Local Storage'}</div>
+        <div style="font-size:13px;color:#6b7280;margin-top:2px">${fbConnected?'Data is syncing across all devices in real-time':'Data is saved only on this device/browser'}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Firebase Setup Guide -->
+  <div class="fpanel" style="margin-bottom:20px">
+    <div class="fpanel-title" style="margin-bottom:16px">🔥 Firebase Setup — Step by Step</div>
+
+    <div style="display:flex;flex-direction:column;gap:14px">
+      ${[
+        {n:1, title:'Create Firebase Project', desc:'Go to <a href="https://console.firebase.google.com" target="_blank" style="color:#1a56db">console.firebase.google.com</a> → Click "Add project" → Enter project name → Create'},
+        {n:2, title:'Enable Firestore Database', desc:'In your project → Build → Firestore Database → Create database → Start in test mode → Choose region → Done'},
+        {n:3, title:'Add Web App', desc:'Project Settings (gear icon) → Your apps → Click &lt;/&gt; Web icon → Register app → Copy the firebaseConfig object'},
+        {n:4, title:'Paste Config in this file', desc:'Open this HTML file in a text editor → Find <code style="background:#f4f5f7;padding:2px 6px;border-radius:4px">const firebaseConfig = {</code> near the top → Replace the YOUR_* values with your actual config'},
+        {n:5, title:'Set Firestore Rules', desc:'Firestore → Rules → Paste this rule:<br><code style="background:#1a1d23;color:#00e5a0;padding:8px 12px;border-radius:6px;display:block;margin-top:6px;font-size:12px">rules_version = &#39;2&#39;;<br>service cloud.firestore {<br>&nbsp;&nbsp;match /databases/{db}/documents {<br>&nbsp;&nbsp;&nbsp;&nbsp;match /{doc=**} { allow read, write: if true; }<br>&nbsp;&nbsp;}<br>}</code>'},
+      ].map(s=>`
+        <div style="display:flex;gap:14px;align-items:flex-start">
+          <div style="width:28px;height:28px;border-radius:50%;background:#1a56db;color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${s.n}</div>
+          <div style="flex:1">
+            <div style="font-size:13px;font-weight:700;color:#1a1d23;margin-bottom:4px">${s.title}</div>
+            <div style="font-size:12px;color:#6b7280;line-height:1.6">${s.desc}</div>
+          </div>
+        </div>`).join('')}
+    </div>
+  </div>
+
+  <!-- GitHub Pages Guide -->
+  <div class="fpanel" style="margin-bottom:20px">
+    <div class="fpanel-title" style="margin-bottom:16px">🐙 GitHub Pages — Deploy Your App</div>
+    <div style="display:flex;flex-direction:column;gap:14px">
+      ${[
+        {n:1, title:'Create GitHub Account', desc:'Go to <a href="https://github.com" target="_blank" style="color:#1a56db">github.com</a> → Sign up (free)'},
+        {n:2, title:'Create New Repository', desc:'Click "+" → New repository → Name it <code style="background:#f4f5f7;padding:2px 6px;border-radius:4px">laptrade-pro</code> → Public → Create'},
+        {n:3, title:'Upload your HTML file', desc:'In the repository → "Add file" → "Upload files" → Drag your <code style="background:#f4f5f7;padding:2px 6px;border-radius:4px">laptop_trading.html</code> → Rename it to <code style="background:#f4f5f7;padding:2px 6px;border-radius:4px">index.html</code> → Commit'},
+        {n:4, title:'Enable GitHub Pages', desc:'Repository → Settings → Pages → Source: "Deploy from branch" → Branch: main → Folder: / (root) → Save'},
+        {n:5, title:'Your app is live!', desc:'After 1-2 minutes your app will be at:<br><code style="background:#1a1d23;color:#00e5a0;padding:6px 12px;border-radius:6px;display:inline-block;margin-top:4px">https://YOUR_USERNAME.github.io/laptrade-pro</code>'},
+      ].map(s=>`
+        <div style="display:flex;gap:14px;align-items:flex-start">
+          <div style="width:28px;height:28px;border-radius:50%;background:#1a1d23;color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${s.n}</div>
+          <div style="flex:1">
+            <div style="font-size:13px;font-weight:700;color:#1a1d23;margin-bottom:4px">${s.title}</div>
+            <div style="font-size:12px;color:#6b7280;line-height:1.6">${s.desc}</div>
+          </div>
+        </div>`).join('')}
+    </div>
+  </div>
+
+  <!-- Data Export/Import -->
+  <div class="fpanel">
+    <div class="fpanel-title" style="margin-bottom:16px">💾 Data Backup & Restore</div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap">
+      <button class="fbtn fbtn-primary" onclick="exportData()">⬇ Export Data (JSON)</button>
+      <button class="fbtn fbtn-outline" onclick="document.getElementById('importFile').click()">⬆ Import Data (JSON)</button>
+      <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
+      <button class="fbtn" style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca" onclick="clearAllData()">🗑 Clear All Data</button>
+    </div>
+    <div style="font-size:12px;color:#9ca3af;margin-top:12px">Export your data as JSON backup. Import to restore or migrate to another device.</div>
+  </div>`;
+}
+
+function exportData(){
+  const blob=new Blob([JSON.stringify(store,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download='laptrade_backup_'+new Date().toISOString().slice(0,10)+'.json';
+  a.click();
+}
+function importData(e){
+  const file=e.target.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    try{
+      const data=JSON.parse(ev.target.result);
+      if(!data.items||!data.trades){alert('Invalid backup file.');return;}
+      store=data; save();
+      alert('✅ Data imported successfully! '+data.items.length+' items, '+data.trades.length+' trades.');
+      showPage('dashboard');
+    }catch(err){alert('Failed to parse file: '+err.message);}
+  };
+  reader.readAsText(file);
+}
+function clearAllData(){
+  if(!confirm('⚠️ This will delete ALL data permanently. Are you sure?'))return;
+  if(!confirm('Last warning — this cannot be undone. Continue?'))return;
+  store={employees:[],items:[],trades:[],tradeCounter:0};
+  save(); showPage('dashboard');
+  alert('All data cleared.');
+}
+
+// ═══════════════════════════════════════════════
+// NAV
+// ═══════════════════════════════════════════════
+const NAV_ADMIN=[
+  {id:'dashboard',icon:'▦',label:'Dashboard'},
+  {id:'allTrades',icon:'☰',label:'All Trade Orders'},
+  {id:'step1',icon:'①',label:'Step 1 — Add Item'},
+  {id:'step2',icon:'②',label:'Step 2 — Assign Trade'},
+  {id:'step3',icon:'③',label:'Step 3 — Record Amount'},
+  {id:'employees',icon:'👥',label:'Employees'},
+];
+const NAV_EMP=[
+  {id:'dashboard',icon:'▦',label:'Dashboard'},
+  {id:'allTrades',icon:'☰',label:'All Trade Orders'},
+  {id:'step1',icon:'①',label:'Step 1 — Add Item'},
+  {id:'step2',icon:'②',label:'Step 2 — Assign Trade'},
+  {id:'step3',icon:'③',label:'Step 3 — Record Amount'},
+];
+function buildNav(){
+  const items=isAdmin()?NAV_ADMIN:NAV_EMP; // guest same as employee
+  document.getElementById('sbNav').innerHTML=items.map(n=>
+    `<button class="nav-item" data-page="${n.id}" onclick="showPage('${n.id}')">${n.icon} &nbsp;${n.label}</button>`
+  ).join('');
+}
+function setNav(id){ document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.page===id)); }
+
+let currentPage='dashboard';
+function showPage(id,extra){
+  currentPage=id; setNav(id);
+  const m=document.getElementById('mainContent');
+  if(id==='dashboard') m.innerHTML=pgDashboard();
+  else if(id==='allTrades') m.innerHTML=pgAllTrades(extra||'all');
+  else if(id==='step1') m.innerHTML=pgStep1();
+  else if(id==='step2') m.innerHTML=pgStep2();
+  else if(id==='step3') m.innerHTML=pgStep3();
+  else if(id==='employees') m.innerHTML=pgEmployees();
+  else if(id==='viewItem') m.innerHTML=pgViewItem(extra);
+  else if(id==='tradeView') m.innerHTML=pgTradeView(extra);
+  else if(id==='settings') m.innerHTML=pgSettings();
+}
+
+// ═══════════════════════════════════════════════
+// MODAL
+// ═══════════════════════════════════════════════
+function openModal(title,sub,body,foot){
+  document.getElementById('mTitle').textContent=title;
+  document.getElementById('mSub').textContent=sub;
+  document.getElementById('mBody').innerHTML=body;
+  document.getElementById('mFoot').innerHTML=foot;
+  document.getElementById('modalOverlay').classList.add('open');
+}
+function closeModal(){ document.getElementById('modalOverlay').classList.remove('open'); }
+function handleOverlay(e){ if(e.target===document.getElementById('modalOverlay'))closeModal(); }
+
+// ═══════════════════════════════════════════════
+// DASHBOARD
+// ═══════════════════════════════════════════════
+let dashFilter='all';
+function pgDashboard(filter){
+  if(filter) dashFilter=filter;
+  const total=store.items.length;
+  const pending=store.items.filter(i=>i.status==='pending').length;
+  const assigned=store.items.filter(i=>i.status==='assigned').length;
+  const traded=store.items.filter(i=>i.status==='traded').length;
+  const rev=store.trades.filter(t=>t.amountRecorded).reduce((s,t)=>s+t.amount,0);
+
+  // Build unified record list: pending items + all trades
+  // Pending items (no trade yet) shown as rows with null trade
+  const pendingItems=store.items.filter(i=>i.status==='pending');
+  const allTrades=[...store.trades].reverse();
+
+  // unified list: {item, trade|null}
+  let unified=[];
+  // Add pending items (no trade)
+  pendingItems.forEach(it=> unified.push({it, t:null}));
+  // Add items with trades
+  allTrades.forEach(t=>{
+    const it=store.items.find(i=>i.id===t.itemId)||{};
+    unified.push({it, t});
+  });
+  // sort by date desc
+  unified.sort((a,b)=>{
+    const da=a.t?new Date(a.t.assignedAt||a.t.tradedAt):new Date(a.it.addedAt);
+    const db=b.t?new Date(b.t.assignedAt||b.t.tradedAt):new Date(b.it.addedAt);
+    return db-da;
+  });
+
+  let filtered=unified;
+  if(dashFilter==='pending')  filtered=unified.filter(r=>!r.t);
+  else if(dashFilter==='traded')  filtered=unified.filter(r=>r.t&&!r.t.amountRecorded);
+  else if(dashFilter==='payment') filtered=unified.filter(r=>r.t&&r.t.amountRecorded);
+
+  let rows='';
+  filtered.forEach(({it,t})=>{
+    const tld=t?t.tradedLaptop||{}:{};
+    const statusBadge=t?getStatusBadge(t):'<span class="badge-pending">Pending</span>';
+    const tradeNo=`<span class="trade-no" style="cursor:pointer;text-decoration:underline" onclick="showPage('tradeView','${it.id}')">${it.tradeNo||'—'}</span>`;
+    rows+=`<tr>
+      <td>${tradeNo}</td>
+      <td>
+        <div style="font-size:10px;color:#9ca3af;margin-bottom:1px">Our Item</div>
+        <div style="font-weight:600">${it.brand||'—'} ${it.model||''}</div>
+        <div style="font-family:monospace;font-size:11px;color:#6b7280">${it.serial||t&&t.serial||'—'}</div>
+      </td>
+      <td>
+        <div style="font-size:10px;color:#059669;font-weight:600;margin-bottom:1px">Trade-In</div>
+        <div style="font-weight:600">${tld.brand||'—'} ${tld.model||''}</div>
+        <div style="font-family:monospace;font-size:11px;color:#6b7280">${tld.serial||'—'}</div>
+      </td>
+      <td>${t?t.employeeName||'—':'—'}</td>
+      <td>${t&&t.amountRecorded?fmtAmt(t.amount):'—'}</td>
+      <td>${fmtDate(t?t.tradedAt:it.addedAt)}</td>
+      <td>${statusBadge}</td>
+    </tr>`;
+  });
+  const colspan=7;
+  if(!rows) rows=`<tr><td colspan="${colspan}" class="no-data">No records found for this filter.</td></tr>`;
+
+  const tabs=[
+    {k:'all',   l:'All',              n:unified.length,  col:'#374151'},
+    {k:'pending',l:'Pending',         n:pending,         col:'#d97706'},
+    {k:'traded', l:'Traded',          n:assigned,        col:'#1a56db'},
+    {k:'payment',l:'Payment Received',n:traded,          col:'#059669'},
+  ];
+  const tabsHtml=tabs.map(t=>`
+    <button onclick="pgDashboardFilter('${t.k}')"
+      style="padding:7px 16px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid ${dashFilter===t.k?'transparent':'#e2e5ea'};background:${dashFilter===t.k?(t.k==='all'?'#374151':t.k==='pending'?'#d97706':t.k==='traded'?'#1a56db':'#059669'):'#fff'};color:${dashFilter===t.k?'#fff':t.col};transition:all .15s;font-family:'Inter',sans-serif;">
+      ${t.l} <span style="background:${dashFilter===t.k?'rgba(255,255,255,.25)':'#f4f5f7'};color:${dashFilter===t.k?'#fff':t.col};border-radius:10px;padding:1px 7px;font-size:11px;margin-left:4px">${t.n}</span>
+    </button>`).join('');
+
+  return `
+  <div class="topbar"><div><div class="page-title">Dashboard</div><div class="page-sub">Welcome back, ${currentUser.name}</div></div></div>
+  <div class="stat-row">
+    <div class="scard" style="cursor:pointer;border:2px solid ${dashFilter==='all'?'#374151':'#e2e5ea'}" onclick="pgDashboardFilter('all')">
+      <div class="scard-label">Total Items</div><div class="scard-val gray">${total}</div>
+    </div>
+    <div class="scard" style="cursor:pointer;border:2px solid ${dashFilter==='pending'?'#d97706':'#e2e5ea'}" onclick="pgDashboardFilter('pending')">
+      <div class="scard-label">Pending</div><div class="scard-val orange">${pending}</div>
+    </div>
+    <div class="scard" style="cursor:pointer;border:2px solid ${dashFilter==='traded'?'#1a56db':'#e2e5ea'}" onclick="pgDashboardFilter('traded')">
+      <div class="scard-label">Traded</div><div class="scard-val blue">${assigned}</div>
+    </div>
+    <div class="scard" style="cursor:pointer;border:2px solid ${dashFilter==='payment'?'#059669':'#e2e5ea'}" onclick="pgDashboardFilter('payment')">
+      <div class="scard-label">Payment Received</div><div class="scard-val green">${traded}</div>
+    </div>
+    <div class="scard"><div class="scard-label">Total Revenue</div><div class="scard-val green" style="font-size:20px">${fmtAmt(rev)}</div></div>
+  </div>
+  <div class="tpanel">
+    <div class="tpanel-head">
+      <div class="tpanel-title">Trade Orders <span style="font-size:13px;font-weight:400;color:#9ca3af;margin-left:6px">${filtered.length} record${filtered.length!==1?'s':''}</span></div>
+      <button class="btn-new" onclick="showPage('allTrades')">View All →</button>
+    </div>
+    <div style="padding:12px 20px;border-bottom:1px solid #e2e5ea;display:flex;gap:8px;flex-wrap:wrap;background:#f9fafb">
+      ${tabsHtml}
+    </div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Trade No.</th><th>Our Item</th><th>Trade-In Laptop</th><th>Employee</th><th>Amount</th><th>Date</th><th>Status</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+  </div>`;
+}
+
+// ═══════════════════════════════════════════════
+// ALL TRADES PAGE — with Employee-wise filter
+// ═══════════════════════════════════════════════
+let activeFilter='all', dateFrom='', dateTo='', activeEmp='all';
+
+function pgAllTrades(filter){
+  activeFilter=filter||activeFilter;
+  const _pi=store.items.filter(i=>i.status==='pending').length;
+  const total=store.items.length;
+  const assigned=store.trades.filter(t=>!t.amountRecorded).length;
+  const traded=store.trades.filter(t=>t.amountRecorded).length;
+
+  // build unique employee list from all trades
+  const empMap={};
+  store.trades.forEach(t=>{
+    if(t.employeeId&&t.employeeName) empMap[t.employeeId]=t.employeeName;
+  });
+  const empList=Object.entries(empMap); // [[id,name],...]
+
+  // Build unified list: pending items + trades
+  const _pendingItems=store.items.filter(i=>i.status==='pending');
+  const _allTrades=[...store.trades].reverse();
+  let _unified=[];
+  _pendingItems.forEach(it=>_unified.push({it,t:null}));
+  _allTrades.forEach(t=>{const it=store.items.find(i=>i.id===t.itemId)||{};_unified.push({it,t});});
+  _unified.sort((a,b)=>{
+    const da=a.t?new Date(a.t.assignedAt||a.t.tradedAt):new Date(a.it.addedAt);
+    const db=b.t?new Date(b.t.assignedAt||b.t.tradedAt):new Date(b.it.addedAt);
+    return db-da;
+  });
+
+  let filtered=_unified;
+  if(activeFilter==='pending') filtered=_unified.filter(r=>!r.t);
+  if(activeFilter==='traded')  filtered=_unified.filter(r=>r.t&&!r.t.amountRecorded);
+  if(activeEmp!=='all')        filtered=filtered.filter(r=>r.t&&r.t.employeeId===activeEmp);
+  if(dateFrom) filtered=filtered.filter(r=>{const d=r.t?new Date(r.t.assignedAt||r.t.tradedAt):new Date(r.it.addedAt);return d>=new Date(dateFrom);});
+  if(dateTo)   filtered=filtered.filter(r=>{const d=r.t?new Date(r.t.assignedAt||r.t.tradedAt):new Date(r.it.addedAt);return d<=new Date(dateTo+'T23:59:59');});
+
+  const isAdm=isAdmin(); const canAct=canEdit();
+  const actTh=canAct?'<th>Next Action</th><th>Edit</th><th>View</th><th>Delete</th>':'<th>View</th>';
+
+  let rows='';
+  filtered.forEach(({it,t})=>{
+    const statusBadge=t?getStatusBadge(t):'<span class="badge-pending">Pending</span>';
+    const tla=t?t.tradedLaptop||{}:{};
+    let stepBtn='';
+    if(!t) stepBtn=canAct?`<button class="btn-step" onclick="showPage('step2')">+ Step 2</button>`:'';
+    else if(!t.amountRecorded) stepBtn=canAct?`<button class="btn-step2" onclick="showPage('step3')">+ Step 3</button>`:'';
+    else stepBtn=`<button class="btn-step3" onclick="openEditAmt('${t.id}')">✓ Done</button>`;
+    const editStep=isAdm&&t?`<td><button class="btn-edit" onclick="openEditAssign('${t.id}')" title="Edit">✎</button></td>`:isAdm?`<td><button class="btn-edit" onclick="openEditItem('${it.id}')" title="Edit">✎</button></td>`:'';
+    const delBtn=isAdm&&t?`<td><button class="btn-del" onclick="openDelTrade('${t.id}')" title="Delete">🗑</button></td>`:isAdm?`<td><button class="btn-del" onclick="openDelItem('${it.id}')" title="Delete">🗑</button></td>`:'';
+    const actCells=canAct
+      ?`<td>${stepBtn}</td>${editStep}<td><button class="btn-view" onclick="showPage('tradeView','${it.id}')">View</button></td>${delBtn}`
+      :`<td><button class="btn-view" onclick="showPage('tradeView','${it.id}')">View</button></td>`;
+    rows+=`<tr>
+      <td><span class="trade-no" style="cursor:pointer;text-decoration:underline" onclick="showPage('tradeView','${it.id}')">${it.tradeNo||'—'}</span></td>
+      <td>
+        <div style="font-size:10px;color:#9ca3af;margin-bottom:2px">Our Item</div>
+        <div style="font-weight:600;font-size:13px">${it.brand||'—'} ${it.model||''}</div>
+        <div style="font-family:monospace;font-size:11px;color:#6b7280">${it.serial||t&&t.serial||'—'}</div>
+      </td>
+      <td>
+        <div style="font-size:10px;color:#059669;font-weight:600;margin-bottom:2px">Trade-In</div>
+        <div style="font-weight:600;font-size:13px">${tla.brand||'—'} ${tla.model||''}</div>
+        <div style="font-family:monospace;font-size:11px;color:#6b7280">${tla.serial||'—'}</div>
+      </td>
+      <td style="font-size:12px;color:#6b7280">${t?fmtDate(t.assignedAt||t.tradedAt):fmtDate(it.addedAt)}</td>
+      <td>${statusBadge}</td>
+      <td>${t?daysBadge(t.assignedAt||t.tradedAt,t.paymentAt||null,t.amountRecorded):''}</td>
+      <td>${t&&t.amountRecorded?fmtAmt(t.amount):'—'}</td>
+      <td>
+        <div style="font-weight:600;font-size:13px">${t?t.employeeName||'—':'—'}</div>
+        <div style="font-size:11px;color:#9ca3af">${t?t.employeeId||'':''}</div>
+      </td>
+      ${actCells}
+    </tr>`;
+  });
+  if(!rows) rows=`<tr><td colspan="${isAdm?12:6}" class="no-data">No records found for this filter.</td></tr>`;
+
+  const fTabs=[{k:'all',l:'All'},{k:'pending',l:'Traded'},{k:'traded',l:'Payment Received'}]
+    .map(f=>`<button class="ftab${activeFilter===f.k?' active':''}" onclick="filterTrades('${f.k}')">${f.l} ${f.k==='all'?'('+total+')':f.k==='pending'?'('+assigned+')':'('+traded+')'}</button>`).join('');
+
+  // employee filter chips
+  const empChips=`
+    <button class="ftab${activeEmp==='all'?' active':''}" onclick="filterEmp('all')" style="margin-left:8px">
+      👥 All Employees
+    </button>
+    ${empList.map(([id,name])=>{
+      const cnt=store.trades.filter(t=>t.employeeId===id).length;
+      const rev=store.trades.filter(t=>t.employeeId===id&&t.amountRecorded).reduce((s,t)=>s+t.amount,0);
+      return `<button class="ftab${activeEmp===id?' active':''}" onclick="filterEmp('${id}')" title="Revenue: ${fmtAmt(rev)}">
+        👤 ${name} <span style="background:rgba(0,0,0,.1);border-radius:10px;padding:1px 6px;font-size:10px;margin-left:3px">${cnt}</span>
+      </button>`;
+    }).join('')}`;
+
+  // employee-wise summary cards (shown when all employees)
+  let empSummary='';
+  if(activeEmp==='all' && empList.length>0){
+    empSummary=`
+    <div style="margin-bottom:20px">
+      <div style="font-size:12px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.6px;margin-bottom:12px">Employee-wise Summary</div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+        ${empList.map(([id,name])=>{
+          const empTrades=store.trades.filter(t=>t.employeeId===id);
+          const empTraded=empTrades.filter(t=>!t.amountRecorded).length;
+          const empPayment=empTrades.filter(t=>t.amountRecorded).length;
+          const empRev=empTrades.filter(t=>t.amountRecorded).reduce((s,t)=>s+t.amount,0);
+          const initials=name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+          return `<div onclick="filterEmp('${id}')" style="background:#fff;border:1px solid ${activeEmp===id?'#1a56db':'#e2e5ea'};border-radius:10px;padding:16px 18px;min-width:180px;cursor:pointer;transition:all .15s;flex:1">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+              <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#1a56db,#7c3aed);color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${initials}</div>
+              <div>
+                <div style="font-size:13px;font-weight:700;color:#1a1d23">${name}</div>
+                <div style="font-size:11px;color:#9ca3af">${id}</div>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+              <div style="text-align:center">
+                <div style="font-size:18px;font-weight:700;color:#1a56db">${empTrades.length}</div>
+                <div style="font-size:10px;color:#9ca3af;margin-top:2px">Total</div>
+              </div>
+              <div style="text-align:center">
+                <div style="font-size:18px;font-weight:700;color:#d97706">${empTraded}</div>
+                <div style="font-size:10px;color:#9ca3af;margin-top:2px">Traded</div>
+              </div>
+              <div style="text-align:center">
+                <div style="font-size:18px;font-weight:700;color:#059669">${empPayment}</div>
+                <div style="font-size:10px;color:#9ca3af;margin-top:2px">Paid</div>
+              </div>
+            </div>
+            <div style="margin-top:10px;padding-top:10px;border-top:1px solid #f1f3f5;text-align:center">
+              <div style="font-size:14px;font-weight:700;color:#059669">${fmtAmt(empRev)}</div>
+              <div style="font-size:10px;color:#9ca3af;margin-top:2px">Revenue</div>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  } else if(activeEmp!=='all'){
+    // selected employee summary bar
+    const selName=empMap[activeEmp]||activeEmp;
+    const selTrades=store.trades.filter(t=>t.employeeId===activeEmp);
+    const selTraded=selTrades.filter(t=>!t.amountRecorded).length;
+    const selPayment=selTrades.filter(t=>t.amountRecorded).length;
+    const selRev=selTrades.filter(t=>t.amountRecorded).reduce((s,t)=>s+t.amount,0);
+    const initials=selName.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+    empSummary=`
+    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:16px 20px;margin-bottom:20px;display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+      <div style="width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#1a56db,#7c3aed);color:#fff;font-size:16px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${initials}</div>
+      <div style="flex:1">
+        <div style="font-size:15px;font-weight:700;color:#1a56db">${selName}</div>
+        <div style="font-size:12px;color:#6b7280">Employee ID: ${activeEmp}</div>
+      </div>
+      <div style="display:flex;gap:20px;flex-wrap:wrap">
+        <div style="text-align:center"><div style="font-size:22px;font-weight:700;color:#1a1d23">${selTrades.length}</div><div style="font-size:11px;color:#9ca3af">Total Trades</div></div>
+        <div style="text-align:center"><div style="font-size:22px;font-weight:700;color:#d97706">${selTraded}</div><div style="font-size:11px;color:#9ca3af">Traded</div></div>
+        <div style="text-align:center"><div style="font-size:22px;font-weight:700;color:#059669">${selPayment}</div><div style="font-size:11px;color:#9ca3af">Payment Rcvd</div></div>
+        <div style="text-align:center"><div style="font-size:20px;font-weight:700;color:#059669">${fmtAmt(selRev)}</div><div style="font-size:11px;color:#9ca3af">Revenue</div></div>
+      </div>
+    </div>`;
+  }
+
+  return `
+  <div class="topbar">
+    <div><div class="page-title">Trade Orders</div><div class="page-sub">All laptop trade records</div></div>
+    <button class="btn-new" onclick="showPage('step1')">+ New Item</button>
+  </div>
+  <div class="stat-row">
+    <div class="scard"><div class="scard-label">Total Items</div><div class="scard-val gray">${total}</div></div>
+    <div class="scard"><div class="scard-label">Pending</div><div class="scard-val orange">${_pi}</div></div>
+    <div class="scard"><div class="scard-label">Traded</div><div class="scard-val blue">${assigned}</div></div>
+    <div class="scard"><div class="scard-label">Payment Received</div><div class="scard-val green">${traded}</div></div>
+  </div>
+  ${empSummary}
+  <div class="tpanel">
+    <div class="tpanel-head">
+      <div class="tpanel-title">Trade Orders <span style="font-size:13px;font-weight:400;color:#9ca3af;margin-left:6px">${filtered.length} record${filtered.length!==1?'s':''}</span></div>
+      <div class="filter-tabs">${fTabs}</div>
+    </div>
+    <div class="date-bar">
+      👤 Employee: ${empChips}
+    </div>
+    <div class="date-bar" style="border-top:none;padding-top:0">
+      📅 Date: &nbsp;
+      <input type="date" id="dfrom" value="${dateFrom}" onchange="setDateFilter()">
+      &nbsp;→&nbsp;
+      <input type="date" id="dto" value="${dateTo}" onchange="setDateFilter()">
+      <button onclick="clearDates()" style="border:1px solid #d1d5db;border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;background:#fff;color:#6b7280;font-family:'Inter',sans-serif;">Clear</button>
+      <span class="showing">Showing ${filtered.length} of ${total}</span>
+    </div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Trade No.</th><th>Our Item</th><th>Trade-In Laptop</th><th>Traded On</th><th>Status</th><th>Days</th><th>Amount</th><th>Employee</th>${actTh}</tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+  </div>`;
+}
+
+function pgDashboardFilter(f){
+  dashFilter=f;
+  document.getElementById('mainContent').innerHTML=pgDashboard(f);
+}
+function filterTrades(f){ activeFilter=f; showPage('allTrades'); }
+function filterEmp(empId){ activeEmp=empId; showPage('allTrades'); }
+function setDateFilter(){
+  dateFrom=document.getElementById('dfrom').value;
+  dateTo=document.getElementById('dto').value;
+  showPage('allTrades');
+}
+function clearDates(){ dateFrom=''; dateTo=''; showPage('allTrades'); }
+
+// ═══════════════════════════════════════════════
+// TRADE NUMBER WISE FULL VIEW
+// ═══════════════════════════════════════════════
+function pgTradeView(itemId){
+  const it=store.items.find(i=>i.id===itemId);
+  if(!it) return '<div style="padding:24px;color:#dc2626">Item not found.</div>';
+  const trade=store.trades.find(t=>t.itemId===itemId);
+
+  // timeline steps
+  const step1Done = true;
+  const step2Done = !!trade;
+  const step3Done = trade && trade.amountRecorded;
+
+  function stepDot(done,active,label,sub){
+    const bg=done?'#059669':active?'#1a56db':'#d1d5db';
+    const ico=done?'✓':active?'●':'○';
+    const lc=done?'#059669':active?'#1a56db':'#9ca3af';
+    return `<div style="display:flex;align-items:center;gap:12px;padding:12px 0">
+      <div style="width:28px;height:28px;border-radius:50%;background:${bg};color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${ico}</div>
+      <div><div style="font-size:13px;font-weight:700;color:${lc}">${label}</div><div style="font-size:12px;color:#9ca3af">${sub}</div></div>
+    </div>`;
+  }
+
+  const totalRevenue = step3Done ? fmtAmt(trade.amount) : '—';
+
+  return `
+  <button class="back-btn" onclick="history.length>1?history.back():showPage('allTrades')">← Back</button>
+  <div class="topbar">
+    <div>
+      <div class="page-title" style="display:flex;align-items:center;gap:12px">
+        <span>${it.tradeNo}</span>
+        ${step3Done?'<span class="badge-payment">✓ Payment Received</span>':step2Done?'<span class="badge-traded">⇄ Traded</span>':'<span class="badge-pending">Pending</span>'}
+      </div>
+      <div class="page-sub">Complete trade history for this item</div>
+    </div>
+    ${canEdit()?`<button class="btn-new" onclick="openEditItem('${it.id}')">✎ Edit Item</button>`:''}
+  </div>
+
+  <!-- SUMMARY CARDS -->
+  <div class="stat-row">
+    <div class="scard"><div class="scard-label">Trade No.</div><div style="font-size:18px;font-weight:700;color:#1a56db">${it.tradeNo}</div></div>
+    <div class="scard"><div class="scard-label">Serial No.</div><div style="font-size:16px;font-weight:700;color:#1a1d23">${it.serial}</div></div>
+    <div class="scard"><div class="scard-label">Brand / Model</div><div style="font-size:15px;font-weight:700;color:#1a1d23">${it.brand} ${it.model}</div></div>
+    <div class="scard"><div class="scard-label">Amount Received</div><div style="font-size:20px;font-weight:700;color:#059669">${totalRevenue}</div></div>
+  </div>
+
+  <!-- TIMELINE -->
+  <div style="display:grid;grid-template-columns:1fr 2fr;gap:20px">
+    <div class="view-panel" style="height:fit-content">
+      <div style="font-size:12px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">Trade Progress</div>
+      <div style="border-left:2px solid #e2e5ea;margin-left:14px;padding-left:16px">
+        ${stepDot(true,false,'Step 1 — Item Added',fmtDate(it.addedAt))}
+        ${stepDot(step2Done,!step2Done,'Step 2 — Traded',trade?trade.employeeName+' · '+fmtDate(trade.assignedAt||trade.tradedAt):'Not yet assigned')}
+        ${stepDot(step3Done,step2Done&&!step3Done,'Step 3 — Payment Received',step3Done?(fmtAmt(trade.amount)+' · '+daysBadge(trade.assignedAt||trade.tradedAt,trade.paymentAt||trade.tradedAt,true)):'Awaiting payment · '+daysBadge(trade.assignedAt||trade.tradedAt,null,false))}
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <!-- STEP 1 DETAIL -->
+      <div class="view-panel">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+          <div style="font-size:13px;font-weight:700;color:#059669;text-transform:uppercase;letter-spacing:.6px">✓ Step 1 — Item Details</div>
+          ${canEdit()?`<button class="btn-edit" onclick="openEditItem('${it.id}')">✎ Edit</button>`:''}
+        </div>
+        <div class="view-row">
+          <div class="view-field"><div class="vfkey">Trade No.</div><div class="vfval" style="color:#1a56db">${it.tradeNo}</div></div>
+          <div class="view-field"><div class="vfkey">Serial No.</div><div class="vfval">${it.serial}</div></div>
+          <div class="view-field"><div class="vfkey">Brand</div><div class="vfval">${it.brand}</div></div>
+          <div class="view-field"><div class="vfkey">Model</div><div class="vfval">${it.model}</div></div>
+          <div class="view-field"><div class="vfkey">Added On</div><div class="vfval">${fmtDate(it.addedAt)}</div></div>
+          ${it.notes?`<div class="view-field"><div class="vfkey">Notes</div><div class="vfval">${it.notes}</div></div>`:''}
+        </div>
+      </div>
+
+      <!-- STEP 2 DETAIL -->
+      <div class="view-panel" style="border-left:3px solid ${step2Done?'#1a56db':'#e2e5ea'}">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+          <div style="font-size:13px;font-weight:700;color:${step2Done?'#1a56db':'#9ca3af'};text-transform:uppercase;letter-spacing:.6px">${step2Done?'✓ ':''} Step 2 — Trade Assignment</div>
+          ${canEdit()&&trade?`<button class="btn-edit" onclick="openEditAssign('${trade.id}')">✎ Edit</button>`:''}
+        </div>
+        ${trade?`
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div>
+            <div style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Employee</div>
+            <div class="view-row">
+              <div class="view-field"><div class="vfkey">Name</div><div class="vfval">${trade.employeeName}</div></div>
+              <div class="view-field"><div class="vfkey">ID</div><div class="vfval">${trade.employeeId}</div></div>
+              <div class="view-field"><div class="vfkey">Assigned On</div><div class="vfval">${fmtDate(trade.tradedAt)}</div></div>
+            </div>
+          </div>
+          <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:14px">
+            <div style="font-size:11px;font-weight:700;color:#059669;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">🔄 Trade-In Laptop</div>
+            ${(()=>{const tl=trade.tradedLaptop||{};
+              return tl.brand?`
+              <div class="view-row">
+                <div class="view-field"><div class="vfkey">Brand</div><div class="vfval" style="font-weight:700;color:#059669">${tl.brand}</div></div>
+                <div class="view-field"><div class="vfkey">Model</div><div class="vfval">${tl.model||'—'}</div></div>
+                <div class="view-field"><div class="vfkey">Serial No.</div><div class="vfval" style="font-family:monospace">${tl.serial||'—'}</div></div>
+                ${tl.notes?`<div class="view-field"><div class="vfkey">Notes</div><div class="vfval">${tl.notes}</div></div>`:''}
+              </div>`:'<div style="color:#9ca3af;font-size:13px">No trade-in laptop recorded.</div>';
+            })()}
+          </div>
+        </div>`:'<div style="color:#9ca3af;font-size:13px">Not yet assigned. Go to Step 2 to assign an employee.</div>'}
+      </div>
+
+      <!-- STEP 3 DETAIL -->
+      <div class="view-panel" style="border-left:3px solid ${step3Done?'#059669':'#e2e5ea'}">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+          <div style="font-size:13px;font-weight:700;color:${step3Done?'#059669':'#9ca3af'};text-transform:uppercase;letter-spacing:.6px">${step3Done?'✓ ':''} Step 3 — Amount Received</div>
+          ${canEdit()&&step3Done?`<button class="btn-edit" onclick="openEditAmt('${trade.id}')">✎ Edit</button>`:''}
+        </div>
+        ${step3Done?`<div class="view-row">
+          <div class="view-field"><div class="vfkey">Amount</div><div class="vfval" style="color:#059669;font-size:22px;font-weight:700">${fmtAmt(trade.amount)}</div></div>
+          <div class="view-field"><div class="vfkey">Traded On</div><div class="vfval">${fmtDate(trade.assignedAt||trade.tradedAt)}</div></div>
+          <div class="view-field"><div class="vfkey">Payment On</div><div class="vfval">${fmtDate(trade.paymentAt||trade.tradedAt)}</div></div>
+          <div class="view-field"><div class="vfkey">Days Taken</div><div class="vfval">${daysBadge(trade.assignedAt||trade.tradedAt,trade.paymentAt||trade.tradedAt,true)}</div></div>
+          <div class="view-field"><div class="vfkey">Status</div><div class="vfval"><span class="badge-payment">✓ Payment Received</span></div></div>
+        </div>`:'<div style="color:#9ca3af;font-size:13px">Amount not yet recorded. Go to Step 3 to finalize.</div>'}
+      </div>
+    </div>
+  </div>`;
+}
+
+// ═══════════════════════════════════════════════
+// VIEW ITEM DETAIL (legacy, kept for allTrades View button)
+// ═══════════════════════════════════════════════
+function pgViewItem(tradeId){
+  const t=store.trades.find(x=>x.id===tradeId);
+  if(!t) return '<div style="padding:24px">Record not found.</div>';
+  const it=store.items.find(i=>i.id===t.itemId)||{};
+  return `
+  <button class="back-btn" onclick="showPage('allTrades')">← Back to Orders</button>
+  <div class="topbar"><div><div class="page-title">Trade Detail</div><div class="page-sub">Order ID: ${it.tradeNo||'—'}</div></div></div>
+  <div class="view-panel">
+    <div style="font-size:13px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.6px;margin-bottom:16px;">Item Information</div>
+    <div class="view-row">
+      <div class="view-field"><div class="vfkey">Trade No.</div><div class="vfval" style="color:#1a56db">${it.tradeNo||'—'}</div></div>
+      <div class="view-field"><div class="vfkey">Serial No.</div><div class="vfval">${t.serial}</div></div>
+      <div class="view-field"><div class="vfkey">Brand</div><div class="vfval">${it.brand||'—'}</div></div>
+      <div class="view-field"><div class="vfkey">Model</div><div class="vfval">${it.model||'—'}</div></div>
+      <div class="view-field"><div class="vfkey">Notes</div><div class="vfval">${it.notes||'—'}</div></div>
+    </div>
+  </div>
+  <div class="view-panel">
+    <div style="font-size:13px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.6px;margin-bottom:16px;">Trade Information</div>
+    <div class="view-row">
+      <div class="view-field"><div class="vfkey">Employee</div><div class="vfval">${t.employeeName}</div></div>
+      <div class="view-field"><div class="vfkey">Employee ID</div><div class="vfval">${t.employeeId}</div></div>
+      <div class="view-field"><div class="vfkey">Date</div><div class="vfval">${fmtDate(t.tradedAt)}</div></div>
+      <div class="view-field"><div class="vfkey">Amount</div><div class="vfval" style="color:#059669;font-size:18px;font-weight:700">${t.amountRecorded?fmtAmt(t.amount):'Pending'}</div></div>
+      <div class="view-field"><div class="vfkey">Status</div><div class="vfval">${getStatusBadge(t)}</div></div>
+    </div>
+  </div>`;
+}
+
+// ═══════════════════════════════════════════════
+// STEP 1 — ADD ITEM
+// ═══════════════════════════════════════════════
+function pgStep1(){
+  const pending=store.items.filter(i=>i.status==='pending');
+  const isAdm=isAdmin(); const canAct=canEdit();
+  const actTh=canAct?'<th>Edit</th><th>Delete</th>':'';
+  let rows='';
+  pending.forEach(it=>{
+    const actCells=canAct
+      ?`<td><button class="btn-edit" onclick="openEditItem('${it.id}')">✎ Edit</button></td><td><button class="btn-del" onclick="openDelItem('${it.id}')">🗑</button></td>`
+      :'';
+    rows+=`<tr>
+      <td><span class="trade-no">${it.tradeNo||'—'}</span></td>
+      <td>${it.serial}</td>
+      <td>${it.brand}</td>
+      <td>${it.model}</td>
+      <td>${fmtDate(it.addedAt)}</td>
+      <td><span class="badge-pending">Pending</span></td>
+      ${actCells}
+    </tr>`;
+  });
+  if(!rows) rows=`<tr><td colspan="${isAdm?8:6}" class="no-data">No pending items. Add one below.</td></tr>`;
+
+  return `
+  <div class="topbar"><div><div class="page-title">Step 1 — Add Item</div><div class="page-sub">Register laptop with serial number</div></div></div>
+  <div class="steps-bar">
+    <div class="step-item active"><div class="step-num-bubble">1</div><div class="step-text"><div class="step-label-text">Add Item</div><div class="step-sub-text">Register laptop</div></div></div>
+    <div class="step-item idle"><div class="step-num-bubble">2</div><div class="step-text"><div class="step-label-text">Traded</div><div class="step-sub-text">Link to employee</div></div></div>
+    <div class="step-item idle"><div class="step-num-bubble">3</div><div class="step-text"><div class="step-label-text">Payment Received</div><div class="step-sub-text">Enter amount</div></div></div>
+  </div>
+  <div id="s1alert" class="alert alert-ok"></div>
+  ${!isGuest()?`<div class="fpanel">
+    <div class="fpanel-title"><span class="step-badge">STEP 1</span> Register New Laptop</div>
+    <div class="fgrid">
+      <div class="fgroup"><label class="flabel">Trade Number</label><input class="finput" disabled placeholder="Auto-generated on save"></div>
+      <div class="fgroup"><label class="flabel">Serial Number *</label><input class="finput" id="s1serial" placeholder="e.g. SN2024XYZ001"></div>
+      <div class="fgroup"><label class="flabel">Brand *</label>
+        <select class="finput" id="s1brand">${BRANDS.map(b=>'<option>'+b+'</option>').join('')}</select>
+      </div>
+      <div class="fgroup"><label class="flabel">Model *</label><input class="finput" id="s1model" placeholder="e.g. MacBook Pro 14"></div>
+      <div class="fgroup full"><label class="flabel">Notes (optional)</label><input class="finput" id="s1notes" placeholder="Any remarks about this item"></div>
+    </div>
+    <div class="factions">
+      <button class="fbtn fbtn-primary" onclick="addItem()">+ Add Item</button>
+    </div>
+  </div>`:'<div class="fpanel" style="background:#fffbeb;border:1px solid #fde68a;"><div style="display:flex;align-items:center;gap:12px"><span style="font-size:24px">👁</span><div><div style="font-weight:700;color:#92400e;margin-bottom:2px">View Only Mode</div><div style="font-size:13px;color:#b45309">You are in Guest mode. Adding items is disabled. Login as Admin or Employee to perform actions.</div></div></div></div>'}
+  <div class="tpanel">
+    <div class="tpanel-head"><div class="tpanel-title">Pending Items <span style="background:#fffbeb;color:#d97706;border:1px solid #fde68a;border-radius:20px;padding:2px 10px;font-size:12px;margin-left:6px">${pending.length}</span></div></div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Trade No.</th><th>Serial No.</th><th>Brand</th><th>Model</th><th>Added</th><th>Status</th>${actTh}</tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+  </div>`;
+  // toggle guest visibility
+  setTimeout(()=>{
+    const gn=document.getElementById('s1guestNotice');
+    const fw=document.getElementById('s1formWrap');
+    if(gn) gn.style.display=isGuest()?'block':'none';
+    if(fw) fw.style.display=isGuest()?'none':'block';
+  },0);
+}
+
+function addItem(){if(isGuest()){alert('View Only mode — you cannot add items. Please login as Admin or Employee.');return;}
+  const serial=document.getElementById('s1serial').value.trim();
+  const brand=document.getElementById('s1brand').value;
+  const model=document.getElementById('s1model').value.trim();
+  const notes=document.getElementById('s1notes').value.trim();
+  if(!serial||!model){alert('Serial Number and Model are required.');return;}
+  if(store.items.find(i=>i.serial===serial)){alert('Serial number already exists!');return;}
+  const tradeNo=genTradeNo();
+  store.items.push({id:'ITEM'+Date.now(),tradeNo,serial,brand,model,notes,status:'pending',addedAt:new Date().toISOString()});
+  save(); showPage('step1');
+  setTimeout(()=>showAlert('s1alert','✓ Item added! Trade No: '+tradeNo),50);
+}
+
+function openEditItem(itemId){if(!canEdit()){alert('Admin access required.');return;}
+  const it=store.items.find(i=>i.id===itemId); if(!it)return;
+  const bOpts=BRANDS.map(b=>`<option${b===it.brand?' selected':''}>${b}</option>`).join('');
+  openModal('Edit Item — '+it.tradeNo,'Step 1 · Admin Edit',
+    `<div class="fgrid">
+      <div class="fgroup"><label class="flabel">Serial Number</label><input class="finput" id="mSerial" value="${it.serial}"></div>
+      <div class="fgroup"><label class="flabel">Brand</label><select class="finput" id="mBrand">${bOpts}</select></div>
+      <div class="fgroup"><label class="flabel">Model</label><input class="finput" id="mModel" value="${it.model||''}"></div>
+      <div class="fgroup"><label class="flabel">Notes</label><input class="finput" id="mNotes" value="${it.notes||''}"></div>
+    </div>`,
+    `<button class="fbtn fbtn-outline" onclick="closeModal()">Cancel</button>
+     <button class="fbtn fbtn-primary" onclick="saveEditItem('${itemId}')">Save Changes</button>`);
+}
+function saveEditItem(itemId){
+  const it=store.items.find(i=>i.id===itemId); if(!it)return;
+  const ns=document.getElementById('mSerial').value.trim();
+  if(!ns){alert('Serial required.');return;}
+  if(store.items.find(i=>i.serial===ns&&i.id!==itemId)){alert('Serial already exists!');return;}
+  if(ns!==it.serial) store.trades.filter(t=>t.itemId===itemId).forEach(t=>t.serial=ns);
+  it.serial=ns; it.brand=document.getElementById('mBrand').value;
+  it.model=document.getElementById('mModel').value.trim();
+  it.notes=document.getElementById('mNotes').value.trim();
+  save(); closeModal(); showPage('step1');
+}
+function openDelItem(itemId){if(!canEdit()){alert('Admin access required.');return;}
+  const it=store.items.find(i=>i.id===itemId); if(!it)return;
+  openModal('Delete Item','This action cannot be undone',
+    `<p class="modal-warn-text">Delete <span class="highlight">${it.brand} ${it.model}</span> (Serial: <b>${it.serial}</b>, Trade: <b>${it.tradeNo}</b>)?<span class="danger-note">⚠ All associated trade records will also be deleted.</span></p>`,
+    `<button class="fbtn fbtn-outline" onclick="closeModal()">Cancel</button>
+     <button class="fbtn fbtn-danger" onclick="confirmDelItem('${itemId}')">Yes, Delete</button>`);
+}
+function confirmDelItem(itemId){
+  store.trades=store.trades.filter(t=>t.itemId!==itemId);
+  store.items=store.items.filter(i=>i.id!==itemId);
+  save(); closeModal(); showPage('step1');
+}
+
+// ═══════════════════════════════════════════════
+// STEP 2 — ASSIGN TRADE (new flow)
+// Substeps: A) pick trade-no → B) confirm laptop details → C) pick employee → assign
+// ═══════════════════════════════════════════════
+function pgStep2(){
+  const pendingItems=store.items.filter(i=>i.status==='pending');
+  const isAdm=isAdmin();
+  const tradeNoOpts=pendingItems.map(i=>`<option value="${i.id}">${i.tradeNo} | ${i.brand} ${i.model} | SN: ${i.serial}</option>`).join('');
+  const empList=isAdm?store.employees:store.employees.filter(e=>e.id===currentUser.id);
+  // Auto-select logged-in employee
+  const autoEmpId=(!isAdm&&!isGuest())?currentUser.id:'';
+  const eOpts=empList.map(e=>`<option value="${e.id}"${e.id===autoEmpId?' selected':''}>${e.name} (${e.id})</option>`).join('');
+
+  const assigned=store.trades.filter(t=>!t.amountRecorded);
+  const actTh=isAdm?'<th>Edit</th><th>Delete</th>':'';
+  let aRows='';
+  [...assigned].reverse().forEach(t=>{
+    const it=store.items.find(i=>i.id===t.itemId)||{};
+    const actCells=isAdm
+      ?`<td><button class="btn-edit" onclick="openEditAssign('${t.id}')">✎ Edit</button></td><td><button class="btn-del" onclick="openDelAssign('${t.id}')">🗑</button></td>`
+      :'';
+    const tl=t.tradedLaptop||{};
+    aRows+=`<tr>
+      <td><span class="trade-no" style="cursor:pointer;text-decoration:underline" onclick="showPage('tradeView','${it.id}')">${it.tradeNo||'—'}</span></td>
+      <td>
+        <div style="font-size:11px;color:#9ca3af;margin-bottom:2px">Our Item</div>
+        <div style="font-weight:600">${it.brand||'—'} ${it.model||''}</div>
+        <div style="font-family:monospace;font-size:11px;color:#6b7280">${t.serial}</div>
+      </td>
+      <td>
+        <div style="font-size:11px;color:#059669;margin-bottom:2px;font-weight:600">Trade-In Laptop</div>
+        <div style="font-weight:600">${tl.brand||'—'} ${tl.model||''}</div>
+        <div style="font-family:monospace;font-size:11px;color:#6b7280">${tl.serial||'—'}</div>
+      </td>
+      <td>${t.employeeName}</td>
+      <td>${fmtDate(t.assignedAt||t.tradedAt)}</td>
+      <td>${daysBadge(t.assignedAt||t.tradedAt,null,false)}</td>
+      <td><span class="badge-traded">⇄ Traded</span></td>
+      ${actCells}
+    </tr>`;
+  });
+  if(!aRows) aRows=`<tr><td colspan="${isAdm?8:6}" class="no-data">No pending assignments.</td></tr>`;
+
+  return `
+  <div class="topbar"><div><div class="page-title">Step 2 — Assign Trade</div><div class="page-sub">Select trade number → confirm laptop → assign employee</div></div></div>
+  <div class="steps-bar">
+    <div class="step-item done"><div class="step-num-bubble">✓</div><div class="step-text"><div class="step-label-text">Add Item</div><div class="step-sub-text">Completed</div></div></div>
+    <div class="step-item active"><div class="step-num-bubble">2</div><div class="step-text"><div class="step-label-text">Traded</div><div class="step-sub-text">Link to employee</div></div></div>
+    <div class="step-item idle"><div class="step-num-bubble">3</div><div class="step-text"><div class="step-label-text">Payment Received</div><div class="step-sub-text">Enter amount</div></div></div>
+  </div>
+  <div id="s2alert" class="alert alert-ok"></div>
+    ${isGuest()?'<div style="display:flex;align-items:center;gap:12px"><span style="font-size:24px">👁</span><div><div style="font-weight:700;color:#92400e;margin-bottom:2px">View Only Mode</div><div style="font-size:13px;color:#b45309">You are in Guest mode. Assigning trades is disabled.</div></div></div>':`<div class="fpanel-title"><span class="step-badge">STEP 2</span> Assign Item to Employee</div>`}
+
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:18px">
+      <div style="width:22px;height:22px;border-radius:50%;background:#1a56db;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">A</div>
+      <span style="font-size:13px;font-weight:600;color:#374151">Select Pending Trade Number</span>
+    </div>
+    <div class="fgrid" style="margin-bottom:0">
+      <div class="fgroup">
+        <label class="flabel">Trade Number *</label>
+        <select class="finput" id="s2tradeNo" onchange="onS2TradeSelect()">
+          <option value="">-- Select Trade Number --</option>${tradeNoOpts}
+        </select>
+      </div>
+    </div>
+
+    <div id="s2laptopBox" style="display:none;margin-top:18px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+        <div style="width:22px;height:22px;border-radius:50%;background:#059669;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">B</div>
+        <div>
+          <div style="font-size:13px;font-weight:700;color:#059669">Trade-In Laptop Details</div>
+          <div style="font-size:11px;color:#9ca3af;margin-top:1px">যে laptop দিয়ে trade করা হবে তার details দিন</div>
+        </div>
+      </div>
+      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:16px 18px;">
+        <div class="fgrid">
+          <div class="fgroup">
+            <label class="flabel" style="color:#059669">Trade-In Brand *</label>
+            <select class="finput" id="s2tBrand" style="border-color:#bbf7d0;">
+              <option value="">-- Select Brand --</option>
+              ${BRANDS.map(b=>'<option>'+b+'</option>').join('')}
+            </select>
+          </div>
+          <div class="fgroup">
+            <label class="flabel" style="color:#059669">Trade-In Model *</label>
+            <input class="finput" id="s2tModel" placeholder="e.g. MacBook Air M2" style="border-color:#bbf7d0;">
+          </div>
+          <div class="fgroup">
+            <label class="flabel" style="color:#059669">Trade-In Serial No. *</label>
+            <input class="finput" id="s2tSerial" placeholder="e.g. C02XG2JJLVCG" style="border-color:#bbf7d0;">
+          </div>
+          <div class="fgroup">
+            <label class="flabel" style="color:#059669">Trade-In Notes</label>
+            <input class="finput" id="s2tNotes" placeholder="Condition, remarks..." style="border-color:#bbf7d0;">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="s2empBox" style="display:none;margin-top:18px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+        <div style="width:22px;height:22px;border-radius:50%;background:#7c3aed;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">C</div>
+        <span style="font-size:13px;font-weight:600;color:#374151">Assign To Employee</span>
+      </div>
+      <div class="fgrid">
+        <div class="fgroup">
+          <label class="flabel">Assign To Employee *</label>
+          ${!isAdm&&!isGuest()?
+            `<div style="display:flex;align-items:center;gap:10px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 14px;">
+              <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#1a56db,#7c3aed);color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${currentUser.name.charAt(0).toUpperCase()}</div>
+              <div>
+                <div style="font-size:13px;font-weight:700;color:#1a56db">${currentUser.name}</div>
+                <div style="font-size:11px;color:#6b7280">ID: ${currentUser.id} — Auto-assigned from login</div>
+              </div>
+            </div>
+            <input type="hidden" id="s2emp" value="${currentUser.id}">`
+            :`<select class="finput" id="s2emp"><option value="">-- Select Employee --</option>${eOpts}</select>`
+          }
+        </div>
+      </div>
+    </div>
+
+    <div class="factions" style="margin-top:20px">
+      <button class="fbtn fbtn-primary" onclick="assignTrade()">Assign Trade →</button>
+    </div>\`}
+  </div>
+  <div class="tpanel">
+    <div class="tpanel-head"><div class="tpanel-title">Traded — Awaiting Payment <span style="background:#eff6ff;color:#1a56db;border:1px solid #bfdbfe;border-radius:20px;padding:2px 10px;font-size:12px;margin-left:6px">${assigned.length}</span></div></div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Trade No.</th><th>Our Item (Brand/Model/Serial)</th><th>Trade-In Laptop</th><th>Employee</th><th>Traded On</th><th>Days Pending</th><th>Status</th>${actTh}</tr></thead>
+      <tbody>${aRows}</tbody>
+    </table></div>
+  </div>`;
+  setTimeout(()=>{
+    const gn=document.getElementById('s2guestNotice');
+    const fw=document.getElementById('s2formWrap');
+    if(gn) gn.style.display=isGuest()?'block':'none';
+    if(fw) fw.style.display=isGuest()?'none':'block';
+  },0);
+}
+
+function onS2TradeSelect(){
+  const itemId=document.getElementById('s2tradeNo').value;
+  const lb=document.getElementById('s2laptopBox');
+  const eb=document.getElementById('s2empBox');
+  if(!itemId){lb.style.display='none';eb.style.display='none';return;}
+  const it=store.items.find(i=>i.id===itemId);
+  if(!it){lb.style.display='none';eb.style.display='none';return;}
+  lb.style.display='block';
+  eb.style.display='block';
+  // clear previous inputs
+  ['s2tBrand','s2tModel','s2tSerial','s2tNotes'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.value='';
+  });
+}
+
+function assignTrade(){if(isGuest()){alert('View Only mode — you cannot assign trades. Please login as Admin or Employee.');return;}
+  const itemId=document.getElementById('s2tradeNo').value;
+  const empId=document.getElementById('s2emp')?document.getElementById('s2emp').value:'';
+  const tBrand=document.getElementById('s2tBrand')?document.getElementById('s2tBrand').value.trim():'';
+  const tModel=document.getElementById('s2tModel')?document.getElementById('s2tModel').value.trim():'';
+  const tSerial=document.getElementById('s2tSerial')?document.getElementById('s2tSerial').value.trim():'';
+  if(!itemId){alert('Please select a Trade Number.');return;}
+  if(!tBrand||!tModel||!tSerial){alert('Please enter the Trade-In Laptop Brand, Model and Serial Number.');return;}
+  if(!empId){alert('Please select an Employee.');return;}
+  const item=store.items.find(i=>i.id===itemId);
+  if(store.trades.find(t=>t.itemId===itemId&&!t.amountRecorded)){alert('This item is already assigned!');return;}
+  const emp=store.employees.find(e=>e.id===empId);
+  const empName=emp?emp.name:(currentUser.role==='employee'?currentUser.name:empId);
+  item.status='assigned';
+  store.trades.push({
+    id:'TRD'+Date.now(),itemId,serial:item.serial,
+    tradedLaptop:{brand:tBrand,model:tModel,serial:tSerial,notes:document.getElementById('s2tNotes')?document.getElementById('s2tNotes').value.trim():''},
+    employeeId:empId,employeeName:empName,
+    amount:0,amountRecorded:false,
+    assignedAt:new Date().toISOString(),
+    tradedAt:new Date().toISOString()
+  });
+  save(); showPage('step2');
+  setTimeout(()=>showAlert('s2alert','✓ Status: Traded! Now go to Step 3 to record payment.'),50);
+}
+
+function openEditAssign(tradeId){if(!canEdit()){alert('Admin access required to edit or delete.');return;}
+  const tr=store.trades.find(t=>t.id===tradeId); if(!tr)return;
+  const tl=tr.tradedLaptop||{};
+  const eOpts=store.employees.map(e=>`<option value="${e.id}"${e.id===tr.employeeId?' selected':''}>${e.name} (${e.id})</option>`).join('');
+  const bOpts=BRANDS.map(b=>`<option${b===tl.brand?' selected':''}>${b}</option>`).join('');
+  openModal('Edit Assignment — '+tr.serial,'Step 2 · Admin Edit',
+    `<div class="fgrid">
+      <div class="fgroup full"><label class="flabel">Assign To Employee</label><select class="finput" id="mEmpId">${eOpts}</select></div>
+      <div class="fgroup full" style="margin-top:4px"><div style="font-size:11px;font-weight:700;color:#059669;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">🔄 Trade-In Laptop</div></div>
+      <div class="fgroup"><label class="flabel">Trade-In Brand</label><select class="finput" id="mTBrand">${bOpts}</select></div>
+      <div class="fgroup"><label class="flabel">Trade-In Model</label><input class="finput" id="mTModel" value="${tl.model||''}"></div>
+      <div class="fgroup"><label class="flabel">Trade-In Serial No.</label><input class="finput" id="mTSerial" value="${tl.serial||''}"></div>
+      <div class="fgroup"><label class="flabel">Trade-In Notes</label><input class="finput" id="mTNotes" value="${tl.notes||''}"></div>
+    </div>`,
+    `<button class="fbtn fbtn-outline" onclick="closeModal()">Cancel</button>
+     <button class="fbtn fbtn-primary" onclick="saveEditAssign('${tradeId}')">Save Changes</button>`);
+}
+function saveEditAssign(tradeId){
+  const tr=store.trades.find(t=>t.id===tradeId); if(!tr)return;
+  const empId=document.getElementById('mEmpId').value;
+  const emp=store.employees.find(e=>e.id===empId);
+  tr.employeeId=empId; tr.employeeName=emp?emp.name:empId;
+  tr.tradedLaptop={
+    brand:document.getElementById('mTBrand').value,
+    model:document.getElementById('mTModel').value.trim(),
+    serial:document.getElementById('mTSerial').value.trim(),
+    notes:document.getElementById('mTNotes').value.trim()
+  };
+  save(); closeModal();
+  if(currentPage==='step2') showPage('step2');
+  else showPage('tradeView', tr.itemId);
+}
+function openDelAssign(tradeId){if(!canEdit()){alert('Admin access required to edit or delete.');return;}
+  const tr=store.trades.find(t=>t.id===tradeId); if(!tr)return;
+  openModal('Remove Assignment','This will reset the item to Pending',
+    `<p class="modal-warn-text">Remove assignment for <span class="highlight">${tr.serial}</span> assigned to <span class="highlight">${tr.employeeName}</span>?<span class="danger-note">⚠ Item will return to Pending status.</span></p>`,
+    `<button class="fbtn fbtn-outline" onclick="closeModal()">Cancel</button>
+     <button class="fbtn fbtn-danger" onclick="confirmDelAssign('${tradeId}')">Yes, Remove</button>`);
+}
+function confirmDelAssign(tradeId){
+  const tr=store.trades.find(t=>t.id===tradeId);
+  if(tr){const it=store.items.find(i=>i.id===tr.itemId);if(it)it.status='pending';}
+  store.trades=store.trades.filter(t=>t.id!==tradeId);
+  save(); closeModal(); showPage('step2');
+}
+
+// ═══════════════════════════════════════════════
+// STEP 3 — RECORD AMOUNT (new flow)
+// Substeps: A) pick pending payment trade-no → B) auto-shows laptop+employee → C) enter amount
+// ═══════════════════════════════════════════════
+function pgStep3(){
+  const pendingTrades=store.trades.filter(t=>!t.amountRecorded);
+  const isAdm=isAdmin();
+  // dropdown by trade number
+  const tOpts=pendingTrades.map(t=>{
+    const it=store.items.find(i=>i.id===t.itemId)||{};
+    return `<option value="${t.id}">${it.tradeNo||'—'} | ${it.brand||''} ${it.model||''} | SN: ${t.serial} | ${t.employeeName}</option>`;
+  }).join('');
+
+  const completed=store.trades.filter(t=>t.amountRecorded);
+  const actTh=isAdm?'<th>Edit</th><th>Delete</th>':'';
+  let cRows='';
+  [...completed].reverse().forEach(t=>{
+    const it=store.items.find(i=>i.id===t.itemId)||{};
+    const actCells=isAdm
+      ?`<td><button class="btn-edit" onclick="openEditAmt('${t.id}')">✎ Edit</button></td><td><button class="btn-del" onclick="openDelTrade('${t.id}')">🗑</button></td>`
+      :'';
+    const tl2=t.tradedLaptop||{};
+    cRows+=`<tr>
+      <td><span class="trade-no" style="cursor:pointer;text-decoration:underline" onclick="showPage('tradeView','${it.id}')">${it.tradeNo||'—'}</span></td>
+      <td>
+        <div style="font-size:11px;color:#9ca3af;margin-bottom:2px">Our Item</div>
+        <div style="font-weight:600">${it.brand||'—'} ${it.model||''}</div>
+        <div style="font-family:monospace;font-size:11px;color:#6b7280">${t.serial}</div>
+      </td>
+      <td>
+        <div style="font-size:11px;color:#059669;margin-bottom:2px;font-weight:600">Trade-In Laptop</div>
+        <div style="font-weight:600">${tl2.brand||'—'} ${tl2.model||''}</div>
+        <div style="font-family:monospace;font-size:11px;color:#6b7280">${tl2.serial||'—'}</div>
+      </td>
+      <td>${t.employeeName}</td>
+      <td style="color:#059669;font-weight:600">${fmtAmt(t.amount)}</td>
+      <td class="mono" style="font-size:12px;color:#6b7280">${fmtDate(t.assignedAt||t.tradedAt)}</td>
+      <td class="mono" style="font-size:12px;color:#059669">${fmtDate(t.paymentAt||t.tradedAt)}</td>
+      <td>${daysBadge(t.assignedAt||t.tradedAt,t.paymentAt||t.tradedAt,true)}</td>
+      <td><span class="badge-payment">✓ Payment Received</span></td>
+      ${actCells}
+    </tr>`;
+  });
+  if(!cRows) cRows=`<tr><td colspan="${isAdm?9:7}" class="no-data">No completed trades yet.</td></tr>`;
+
+  return `
+  <div class="topbar"><div><div class="page-title">Step 3 — Record Amount</div><div class="page-sub">Select pending payment → confirm details → enter amount received</div></div></div>
+  <div class="steps-bar">
+    <div class="step-item done"><div class="step-num-bubble">✓</div><div class="step-text"><div class="step-label-text">Add Item</div><div class="step-sub-text">Completed</div></div></div>
+    <div class="step-item done"><div class="step-num-bubble">✓</div><div class="step-text"><div class="step-label-text">Traded</div><div class="step-sub-text">Completed</div></div></div>
+    <div class="step-item active"><div class="step-num-bubble">3</div><div class="step-text"><div class="step-label-text">Record Amount</div><div class="step-sub-text">Enter amount</div></div></div>
+  </div>
+  <div id="s3alert" class="alert alert-ok"></div>
+    ${isGuest()?'<div style="display:flex;align-items:center;gap:12px"><span style="font-size:24px">👁</span><div><div style="font-weight:700;color:#92400e;margin-bottom:2px">View Only Mode</div><div style="font-size:13px;color:#b45309">You are in Guest mode. Recording payments is disabled.</div></div></div>':`<div class="fpanel-title"><span class="step-badge">STEP 3</span> Record Trading Amount</div>`}
+
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+      <div style="width:22px;height:22px;border-radius:50%;background:#1a56db;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">A</div>
+      <span style="font-size:13px;font-weight:600;color:#374151">Select Pending Payment (Trade Number)</span>
+    </div>
+    <div class="fgrid" style="margin-bottom:0">
+      <div class="fgroup">
+        <label class="flabel">Trade Number *</label>
+        <select class="finput" id="s3trade" onchange="onS3TradeSelect()">
+          <option value="">-- Select Assigned Trade --</option>${tOpts}
+        </select>
+      </div>
+    </div>
+
+    <div id="s3detailBox" style="display:none;margin-top:18px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+        <div style="width:22px;height:22px;border-radius:50%;background:#059669;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">B</div>
+        <span style="font-size:13px;font-weight:600;color:#374151">Trade Details</span>
+      </div>
+      <div class="preview-box show" id="s3detailPreview"></div>
+    </div>
+
+    <div id="s3amtBox" style="display:none;margin-top:18px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+        <div style="width:22px;height:22px;border-radius:50%;background:#7c3aed;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">C</div>
+        <span style="font-size:13px;font-weight:600;color:#374151">Enter Amount Received</span>
+      </div>
+      <div class="fgrid">
+        <div class="fgroup">
+          <label class="flabel">Trading Amount (₹) *</label>
+          <input class="finput" id="s3amount" type="number" placeholder="e.g. 25000" min="0">
+        </div>
+      </div>
+    </div>
+
+    <div class="factions" style="margin-top:20px">
+      <button class="fbtn fbtn-primary" onclick="recordAmount()">✓ Confirm & Complete Trade</button>
+    </div>\`}
+  </div>
+  <div class="tpanel">
+    <div class="tpanel-head"><div class="tpanel-title">Payment Received <span style="background:#ecfdf5;color:#059669;border:1px solid #a7f3d0;border-radius:20px;padding:2px 10px;font-size:12px;margin-left:6px">${completed.length}</span></div></div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Trade No.</th><th>Our Item</th><th>Trade-In Laptop</th><th>Employee</th><th>Amount</th><th>Traded On</th><th>Payment On</th><th>Days Taken</th><th>Status</th>${actTh}</tr></thead>
+      <tbody>${cRows}</tbody>
+    </table></div>
+  </div>`;
+  setTimeout(()=>{
+    const gn=document.getElementById('s3guestNotice');
+    const fw=document.getElementById('s3formWrap');
+    if(gn) gn.style.display=isGuest()?'block':'none';
+    if(fw) fw.style.display=isGuest()?'none':'block';
+  },0);
+}
+
+function onS3TradeSelect(){
+  const id=document.getElementById('s3trade').value;
+  const db=document.getElementById('s3detailBox');
+  const ab=document.getElementById('s3amtBox');
+  if(!id){db.style.display='none';ab.style.display='none';return;}
+  const t=store.trades.find(x=>x.id===id);
+  const it=t?store.items.find(i=>i.id===t.itemId)||{}:{};
+  const _tl=t.tradedLaptop||{};
+  document.getElementById('s3detailPreview').innerHTML=`
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+      <div>
+        <div style="font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Our Item</div>
+        <div class="pgrid" style="grid-template-columns:repeat(3,1fr)">
+          <div><div class="pkey">Trade No.</div><div class="pval" style="color:#1a56db;font-weight:700">${it.tradeNo||'—'}</div></div>
+          <div><div class="pkey">Brand / Model</div><div class="pval" style="font-weight:600">${it.brand||'—'} ${it.model||''}</div></div>
+          <div><div class="pkey">Serial No.</div><div class="pval" style="font-family:monospace;font-size:12px">${t.serial}</div></div>
+        </div>
+      </div>
+      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px">
+        <div style="font-size:10px;font-weight:700;color:#059669;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">🔄 Trade-In Laptop</div>
+        <div class="pgrid" style="grid-template-columns:repeat(3,1fr)">
+          <div><div class="pkey">Brand</div><div class="pval" style="font-weight:700;color:#059669">${_tl.brand||'—'}</div></div>
+          <div><div class="pkey">Model</div><div class="pval">${_tl.model||'—'}</div></div>
+          <div><div class="pkey">Serial No.</div><div class="pval" style="font-family:monospace;font-size:12px">${_tl.serial||'—'}</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="pgrid" style="grid-template-columns:repeat(2,1fr);margin-top:10px">
+      <div><div class="pkey">Employee</div><div class="pval">${t.employeeName}</div></div>
+      <div><div class="pkey">Assigned On</div><div class="pval">${fmtDate(t.tradedAt)}</div></div>
+    </div>`;
+  db.style.display='block';
+  ab.style.display='block';
+}
+
+function recordAmount(){if(isGuest()){alert('View Only mode — you cannot record amounts. Please login as Admin or Employee.');return;}
+  const id=document.getElementById('s3trade').value;
+  const amtEl=document.getElementById('s3amount');
+  const amt=amtEl?parseFloat(amtEl.value):0;
+  if(!id){alert('Please select a trade.');return;}
+  if(!amt||amt<=0){alert('Please enter a valid amount.');return;}
+  const trade=store.trades.find(t=>t.id===id); if(!trade)return;
+  trade.amount=amt; trade.amountRecorded=true; trade.paymentAt=new Date().toISOString(); trade.tradedAt=new Date().toISOString();
+  const item=store.items.find(i=>i.id===trade.itemId); if(item)item.status='traded';
+  save(); showPage('step3');
+  setTimeout(()=>showAlert('s3alert','✓ Status: Payment Received! Trade complete.'),50);
+}
+
+function openEditAmt(tradeId){if(!canEdit()){alert('Admin access required to edit or delete.');return;}
+  const tr=store.trades.find(t=>t.id===tradeId); if(!tr)return;
+  openModal('Edit Trade Amount','Step 3 · Admin Edit',
+    `<div class="fgrid"><div class="fgroup full"><label class="flabel">Trading Amount (₹)</label><input class="finput" id="mAmt" type="number" value="${tr.amount||0}" min="0"></div></div>`,
+    `<button class="fbtn fbtn-outline" onclick="closeModal()">Cancel</button>
+     <button class="fbtn fbtn-primary" onclick="saveEditAmt('${tradeId}')">Save Changes</button>`);
+}
+function saveEditAmt(tradeId){
+  const tr=store.trades.find(t=>t.id===tradeId); if(!tr)return;
+  const amt=parseFloat(document.getElementById('mAmt').value);
+  if(!amt||amt<=0){alert('Enter valid amount.');return;}
+  tr.amount=amt; tr.amountRecorded=true;
+  const it=store.items.find(i=>i.id===tr.itemId); if(it)it.status='traded';
+  save(); closeModal();
+  if(currentPage==='step3') showPage('step3');
+  else showPage('allTrades');
+}
+function openDelTrade(tradeId){if(!canEdit()){alert('Admin access required to edit or delete.');return;}
+  const tr=store.trades.find(t=>t.id===tradeId); if(!tr)return;
+  openModal('Delete Trade Record','This action cannot be undone',
+    `<p class="modal-warn-text">Delete trade for <span class="highlight">${tr.serial}</span> (Amount: <span class="highlight">${fmtAmt(tr.amount)}</span>)?<span class="danger-note">⚠ Item will be reset to Pending status.</span></p>`,
+    `<button class="fbtn fbtn-outline" onclick="closeModal()">Cancel</button>
+     <button class="fbtn fbtn-danger" onclick="confirmDelTrade('${tradeId}')">Yes, Delete</button>`);
+}
+function confirmDelTrade(tradeId){
+  const tr=store.trades.find(t=>t.id===tradeId);
+  if(tr){const it=store.items.find(i=>i.id===tr.itemId);if(it)it.status='pending';}
+  store.trades=store.trades.filter(t=>t.id!==tradeId);
+  save(); closeModal();
+  if(currentPage==='step3') showPage('step3');
+  else showPage('allTrades');
+}
+
+// ═══════════════════════════════════════════════
+// EMPLOYEES
+// ═══════════════════════════════════════════════
+function pgEmployees(){
+  if(!isAdmin()) return `<div style="padding:40px;text-align:center"><div style="font-size:48px;margin-bottom:16px">🔒</div><div style="font-size:18px;font-weight:700;color:#1a1d23;margin-bottom:8px">Admin Access Required</div><div style="color:#9ca3af;font-size:14px">You need to be logged in as Admin to manage employees.</div></div>`;
+  return `
+  <div class="topbar"><div><div class="page-title">Employee Management</div><div class="page-sub">Admin — manage staff login access</div></div></div>
+  <div id="empAlert" class="alert alert-ok"></div>
+  <div id="empErr" class="alert alert-err"></div>
+  <div class="fpanel">
+    <div class="fpanel-title">Add New Employee</div>
+    <div class="fgrid">
+      <div class="fgroup"><label class="flabel">Full Name *</label><input class="finput" id="empName" placeholder="Employee full name"></div>
+      <div class="fgroup"><label class="flabel">Employee ID *</label><input class="finput" id="empId" placeholder="Unique login ID"></div>
+      <div class="fgroup"><label class="flabel">Password *</label><input class="finput" id="empPass" type="password" placeholder="Set login password"></div>
+      <div class="fgroup"><label class="flabel">Department</label><input class="finput" id="empDept" placeholder="e.g. Sales, Operations"></div>
+    </div>
+    <div class="factions"><button class="fbtn fbtn-primary" onclick="addEmployee()">+ Add Employee</button></div>
+  </div>
+  <div class="emp-grid">
+    ${store.employees.length?store.employees.map(e=>`
+      <div class="emp-card">
+        <div class="emp-avatar">${e.name.charAt(0).toUpperCase()}</div>
+        <div class="emp-name">${e.name}</div>
+        <div class="emp-id">${e.id}</div>
+        ${e.dept?`<div class="emp-dept">${e.dept}</div>`:''}
+        <button class="emp-del-btn" onclick="deleteEmployee('${e.id}')">✕</button>
+      </div>`).join(''):'<div style="color:#9ca3af;font-size:14px;padding:8px">No employees added yet.</div>'}
+  </div>`;
+}
+function addEmployee(){
+  const name=document.getElementById('empName').value.trim();
+  const id=document.getElementById('empId').value.trim();
+  const pass=document.getElementById('empPass').value;
+  const dept=document.getElementById('empDept').value.trim();
+  document.getElementById('empAlert').style.display='none';
+  document.getElementById('empErr').style.display='none';
+  if(!name||!id||!pass){alert('Name, ID and Password are required.');return;}
+  if(store.employees.find(e=>e.id===id)||id===ADMIN.id){document.getElementById('empErr').textContent='⚠ Employee ID already exists.';document.getElementById('empErr').style.display='block';return;}
+  store.employees.push({id,name,pass,dept,addedAt:new Date().toISOString()});
+  save(); showPage('employees');
+  setTimeout(()=>showAlert('empAlert','✓ Employee added successfully!'),50);
+}
+function deleteEmployee(id){
+  if(!confirm('Remove this employee?'))return;
+  store.employees=store.employees.filter(e=>e.id!==id);
+  save(); showPage('employees');
+}
+
+// ═══════════════════════════════════════════════
+// TRADE NUMBER SEARCH
+// ═══════════════════════════════════════════════
+function searchTradeNo(){
+  const q=document.getElementById('sbTradeSearch').value.trim().toUpperCase();
+  if(!q) return;
+  const it=store.items.find(i=>(i.tradeNo||'').toUpperCase().includes(q)||(i.serial||'').toUpperCase().includes(q));
+  if(it){ document.getElementById('sbTradeSearch').value=''; showPage('tradeView',it.id); }
+  else alert('No trade found for: '+q);
+}
+
+} // end _startApp()
+</script>
+</body>
+</html>
