@@ -544,14 +544,14 @@ let _pendingUser = null; // user who logged in before _startApp finished
 // ── Voice / Speech helper ──────────────────────────
 function speak(text, rate=1, pitch=1){
   if(!window.speechSynthesis) return;
-  window.speechSynthesis.cancel(); // stop any current speech
+  window.speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(text);
   u.rate  = rate;
   u.pitch = pitch;
   u.volume = 1;
-  // Prefer a natural English voice if available
+  u.lang = 'en-US';
   const voices = window.speechSynthesis.getVoices();
-  const preferred = voices.find(v => v.lang.startsWith('en') && v.localService);
+  const preferred = voices.find(v => v.lang.startsWith('en') && v.localService) || voices.find(v => v.lang.startsWith('en'));
   if(preferred) u.voice = preferred;
   window.speechSynthesis.speak(u);
 }
@@ -656,8 +656,7 @@ window._realLaunchApp = function(){
   buildNav(); showPage('dashboard');
   // 🔊 Welcome voice greeting
   setTimeout(()=>{
-    const roleLbl = currentUser.role==='admin' ? 'Administrator' : currentUser.role==='employee' ? '' : 'Guest';
-    speak('Welcome! Login ' + currentUser.name + (roleLbl ? '. Logged in as ' + roleLbl : '') + '. Have a great session!', 0.95, 1.05);
+    speak('Welcome! ' + currentUser.name, 0.95, 1.05);
   }, 400);
   const banner = document.getElementById('guestBanner');
   if(banner) banner.style.display = currentUser.role==='guest' ? 'flex' : 'none';
@@ -1449,7 +1448,7 @@ function addItem(){if(isGuest()){alert('View Only mode — you cannot add items.
   save(); showPage('step1');
   setTimeout(()=>showAlert('s1alert','✓ Item added! Trade No: '+tradeNo),50);
   // 🔊 Voice: Item added successfully
-  setTimeout(()=>speak('Item added successfully! Trade number ' + tradeNo.split('/').join(' ') + ' has been registered. Please proceed to Step 2 to assign the trade.', 0.95, 1.05), 200);
+  setTimeout(()=>speak('Item added successfully!', 0.95, 1.05), 200);
 }
 
 function openEditItem(itemId){if(!canEdit()){alert('Admin access required.');return;}
@@ -1671,7 +1670,7 @@ function assignTrade(){if(isGuest()){alert('View Only mode — you cannot assign
   save(); showPage('step2');
   setTimeout(()=>showAlert('s2alert','✓ Status: Traded! Now go to Step 3 to record payment.'),50);
   // 🔊 Voice: Trade completed successfully
-  setTimeout(()=>speak('Trade completed successfully! Please proceed to Step 3 to record the payment.', 0.95, 1.05), 200);
+  setTimeout(()=>speak('Trade completed successfully!', 0.95, 1.05), 200);
 }
 
 function openEditAssign(tradeId){if(!isAdmin()){alert('Admin access required to edit or delete.');return;}
@@ -1876,7 +1875,7 @@ function recordAmount(){if(isGuest()){alert('View Only mode — you cannot recor
   save(); showPage('step3');
   setTimeout(()=>showAlert('s3alert','✓ Status: Payment Received! Trade complete.'),50);
   // 🔊 Voice: Payment recorded, trade fully complete
-  setTimeout(()=>speak('Payment received! Trade completed successfully. Great work!', 0.95, 1.05), 200);
+  setTimeout(()=>speak('Payment received!', 0.95, 1.05), 200);
 }
 
 function openEditAmt(tradeId){if(!isAdmin()){alert('Admin access required to edit or delete.');return;}
