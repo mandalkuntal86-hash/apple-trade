@@ -541,6 +541,23 @@ let loginRole = 'admin';
 let _appReady = false;
 let _pendingUser = null; // user who logged in before _startApp finished
 
+// ── Voice / Speech helper ──────────────────────────
+function speak(text, rate=1, pitch=1){
+  if(!window.speechSynthesis) return;
+  window.speechSynthesis.cancel(); // stop any current speech
+  const u = new SpeechSynthesisUtterance(text);
+  u.rate  = rate;
+  u.pitch = pitch;
+  u.volume = 1;
+  // Prefer a natural English voice if available
+  const voices = window.speechSynthesis.getVoices();
+  const preferred = voices.find(v => v.lang.startsWith('en') && v.localService);
+  if(preferred) u.voice = preferred;
+  window.speechSynthesis.speak(u);
+}
+// Voices may not be ready immediately — pre-load them
+if(window.speechSynthesis) window.speechSynthesis.onvoiceschanged = ()=>window.speechSynthesis.getVoices();
+
 function setRole(r){
   loginRole = r;
   document.querySelectorAll('.role-tab').forEach((b,i) =>
@@ -637,6 +654,11 @@ window._realLaunchApp = function(){
     currentUser.role==='admin' ? 'Administrator' :
     currentUser.role==='employee' ? 'Employee' : 'View Only';
   buildNav(); showPage('dashboard');
+  // 🔊 Welcome voice greeting
+  setTimeout(()=>{
+    const roleLbl = currentUser.role==='admin' ? 'Administrator' : currentUser.role==='employee' ? '' : 'Guest';
+    speak('Welcome! Login ' + currentUser.name + (roleLbl ? '. Logged in as ' + roleLbl : '') + '. Have a great session!', 0.95, 1.05);
+  }, 400);
   const banner = document.getElementById('guestBanner');
   if(banner) banner.style.display = currentUser.role==='guest' ? 'flex' : 'none';
   const fbSt = document.getElementById('fbStatus');
@@ -1426,6 +1448,8 @@ function addItem(){if(isGuest()){alert('View Only mode — you cannot add items.
   store.items.push({id:'ITEM'+Date.now(),tradeNo,serial,brand,model,notes,status:'pending',addedAt:new Date().toISOString()});
   save(); showPage('step1');
   setTimeout(()=>showAlert('s1alert','✓ Item added! Trade No: '+tradeNo),50);
+  // 🔊 Voice: Item added successfully
+  setTimeout(()=>speak('Item added successfully! Trade number ' + tradeNo.split('/').join(' ') + ' has been registered. Please proceed to Step 2 to assign the trade.', 0.95, 1.05), 200);
 }
 
 function openEditItem(itemId){if(!canEdit()){alert('Admin access required.');return;}
@@ -1646,6 +1670,8 @@ function assignTrade(){if(isGuest()){alert('View Only mode — you cannot assign
   });
   save(); showPage('step2');
   setTimeout(()=>showAlert('s2alert','✓ Status: Traded! Now go to Step 3 to record payment.'),50);
+  // 🔊 Voice: Trade completed successfully
+  setTimeout(()=>speak('Trade completed successfully! Please proceed to Step 3 to record the payment.', 0.95, 1.05), 200);
 }
 
 function openEditAssign(tradeId){if(!isAdmin()){alert('Admin access required to edit or delete.');return;}
@@ -1849,6 +1875,8 @@ function recordAmount(){if(isGuest()){alert('View Only mode — you cannot recor
   const item=store.items.find(i=>i.id===trade.itemId); if(item)item.status='traded';
   save(); showPage('step3');
   setTimeout(()=>showAlert('s3alert','✓ Status: Payment Received! Trade complete.'),50);
+  // 🔊 Voice: Payment recorded, trade fully complete
+  setTimeout(()=>speak('Payment received! Trade completed successfully. Great work!', 0.95, 1.05), 200);
 }
 
 function openEditAmt(tradeId){if(!isAdmin()){alert('Admin access required to edit or delete.');return;}
