@@ -542,21 +542,41 @@ let _appReady = false;
 let _pendingUser = null; // user who logged in before _startApp finished
 
 // ── Voice / Speech helper ──────────────────────────
-function speak(text, rate=1, pitch=1){
+function speak(text){
   if(!window.speechSynthesis) return;
+  // Cancel any ongoing speech
   window.speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(text);
-  u.rate  = rate;
-  u.pitch = pitch;
-  u.volume = 1;
-  u.lang = 'en-US';
+
+  function _doSpeak(){
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang   = 'en-US';
+    u.rate   = 0.95;
+    u.pitch  = 1.1;
+    u.volume = 1;
+    const voices = window.speechSynthesis.getVoices();
+    const preferred =
+      voices.find(v => v.lang === 'en-US' && v.localService) ||
+      voices.find(v => v.lang === 'en-GB' && v.localService) ||
+      voices.find(v => v.lang.startsWith('en') && v.localService) ||
+      voices.find(v => v.lang.startsWith('en'));
+    if(preferred) u.voice = preferred;
+    window.speechSynthesis.speak(u);
+  }
+
   const voices = window.speechSynthesis.getVoices();
-  const preferred = voices.find(v => v.lang.startsWith('en') && v.localService) || voices.find(v => v.lang.startsWith('en'));
-  if(preferred) u.voice = preferred;
-  window.speechSynthesis.speak(u);
+  if(voices.length > 0){
+    // Small delay after cancel so browser is ready
+    setTimeout(_doSpeak, 150);
+  } else {
+    // Voices not loaded yet — wait for them
+    window.speechSynthesis.onvoiceschanged = () => {
+      window.speechSynthesis.onvoiceschanged = null;
+      setTimeout(_doSpeak, 150);
+    };
+  }
 }
-// Voices may not be ready immediately — pre-load them
-if(window.speechSynthesis) window.speechSynthesis.onvoiceschanged = ()=>window.speechSynthesis.getVoices();
+// Pre-load voices on page load
+if(window.speechSynthesis) window.speechSynthesis.getVoices();
 
 function setRole(r){
   loginRole = r;
@@ -656,7 +676,7 @@ window._realLaunchApp = function(){
   buildNav(); showPage('dashboard');
   // 🔊 Welcome voice greeting
   setTimeout(()=>{
-    speak('Welcome! ' + currentUser.name, 0.95, 1.05);
+    speak('Welcome! ' + currentUser.name);
   }, 400);
   const banner = document.getElementById('guestBanner');
   if(banner) banner.style.display = currentUser.role==='guest' ? 'flex' : 'none';
@@ -1448,7 +1468,7 @@ function addItem(){if(isGuest()){alert('View Only mode — you cannot add items.
   save(); showPage('step1');
   setTimeout(()=>showAlert('s1alert','✓ Item added! Trade No: '+tradeNo),50);
   // 🔊 Voice: Item added successfully
-  setTimeout(()=>speak('Item added successfully!', 0.95, 1.05), 200);
+  setTimeout(()=>speak('Item added successfully!'), 200);
 }
 
 function openEditItem(itemId){if(!canEdit()){alert('Admin access required.');return;}
@@ -1670,7 +1690,7 @@ function assignTrade(){if(isGuest()){alert('View Only mode — you cannot assign
   save(); showPage('step2');
   setTimeout(()=>showAlert('s2alert','✓ Status: Traded! Now go to Step 3 to record payment.'),50);
   // 🔊 Voice: Trade completed successfully
-  setTimeout(()=>speak('Trade completed successfully!', 0.95, 1.05), 200);
+  setTimeout(()=>speak('Trade completed successfully!'), 200);
 }
 
 function openEditAssign(tradeId){if(!isAdmin()){alert('Admin access required to edit or delete.');return;}
@@ -1875,7 +1895,7 @@ function recordAmount(){if(isGuest()){alert('View Only mode — you cannot recor
   save(); showPage('step3');
   setTimeout(()=>showAlert('s3alert','✓ Status: Payment Received! Trade complete.'),50);
   // 🔊 Voice: Payment recorded, trade fully complete
-  setTimeout(()=>speak('Payment received!', 0.95, 1.05), 200);
+  setTimeout(()=>speak('Payment received!'), 200);
 }
 
 function openEditAmt(tradeId){if(!isAdmin()){alert('Admin access required to edit or delete.');return;}
