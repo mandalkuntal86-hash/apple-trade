@@ -960,6 +960,7 @@ function pgDashboard(filter){
   filtered.forEach(({it,t})=>{
     const tld=t?t.tradedLaptop||{}:{};
     const statusBadge=t?getStatusBadge(t):'<span class="badge-pending">Pending</span>';
+    const priorityBadge=it.priority&&!t?'<span class="badge-priority" style="margin-left:5px">⚡ Priority</span>':'';
     const tradeNo=`<span class="trade-no" style="cursor:pointer;text-decoration:underline" onclick="showPage('tradeView','${it.id}')">${it.tradeNo||'—'}</span>`;
     rows+=`<tr>
       <td>${tradeNo}</td>
@@ -976,7 +977,7 @@ function pgDashboard(filter){
       <td>${t?t.employeeName||'—':'—'}</td>
       <td>${t&&t.amountRecorded?fmtAmt(t.amount):'—'}</td>
       <td>${fmtDate(t?t.tradedAt:it.addedAt)}</td>
-      <td>${statusBadge}</td>
+      <td>${statusBadge}${priorityBadge}</td>
     </tr>`;
   });
   const colspan=7;
@@ -1070,6 +1071,7 @@ function pgAllTrades(filter){
   let rows='';
   filtered.forEach(({it,t})=>{
     const statusBadge=t?getStatusBadge(t):'<span class="badge-pending">Pending</span>';
+    const priorityBadge=it.priority&&!t?'<span class="badge-priority" style="margin-left:5px">⚡ Priority</span>':'';
     const tla=t?t.tradedLaptop||{}:{};
     let stepBtn='';
     if(!t) stepBtn=canAct?`<button class="btn-step" onclick="showPage('step2')">+ Step 2</button>`:'';
@@ -1093,7 +1095,7 @@ function pgAllTrades(filter){
         <div style="font-family:monospace;font-size:11px;color:#6b7280">${tla.serial||'—'}</div>
       </td>
       <td style="font-size:12px;color:#6b7280">${t?fmtDate(t.assignedAt||t.tradedAt):fmtDate(it.addedAt)}</td>
-      <td>${statusBadge}</td>
+      <td>${statusBadge}${priorityBadge}</td>
       <td>${t?daysBadge(t.assignedAt||t.tradedAt,t.paymentAt||null,t.amountRecorded):''}</td>
       <td>${t&&t.amountRecorded?fmtAmt(t.amount):'—'}</td>
       <td>
@@ -1268,6 +1270,7 @@ function pgTradeView(itemId){
       <div class="page-title" style="display:flex;align-items:center;gap:12px">
         <span>${it.tradeNo}</span>
         ${step3Done?'<span class="badge-payment">✓ Payment Received</span>':step2Done?'<span class="badge-traded">⇄ Traded</span>':'<span class="badge-pending">Pending</span>'}
+        ${it.priority&&!step2Done?'<span class="badge-priority">⚡ Priority</span>':''}
       </div>
       <div class="page-sub">Complete trade history for this item</div>
     </div>
