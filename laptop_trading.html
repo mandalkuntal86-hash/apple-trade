@@ -461,6 +461,8 @@ tr:hover td{background:#f9fafb;}
 .custom-select-wrap{position:relative;width:100%;}
 .custom-select-display{border:1px solid #d1d5db;border-radius:7px;padding:9px 36px 9px 12px;font-size:13px;color:#1a1d23;background:#fff;cursor:pointer;display:flex;align-items:center;gap:8px;transition:border-color .15s;user-select:none;min-height:40px;}
 .custom-select-display:hover,.custom-select-display.open{border-color:#1a56db;box-shadow:0 0 0 3px rgba(26,86,219,.08);}
+.custom-select-display.has-value{border-color:#059669;background:#f0fdf4;}
+.custom-select-display.has-value:hover,.custom-select-display.has-value.open{border-color:#059669;box-shadow:0 0 0 3px rgba(5,150,105,.08);}
 .custom-select-display::after{content:'▾';position:absolute;right:12px;top:50%;transform:translateY(-50%);color:#6b7280;font-size:14px;pointer-events:none;}
 .custom-select-opts{position:absolute;top:calc(100% + 4px);left:0;right:0;background:#fff;border:1px solid #d1d5db;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:999;max-height:280px;overflow-y:auto;display:none;}
 .custom-select-opts.open{display:block;}
@@ -1680,12 +1682,13 @@ function pgStep2(){
   setTimeout(()=>{
     const ddOpts=document.getElementById('s2ddOpts');
     if(!ddOpts) return;
-    let ddHtml='<div class="custom-select-opt" style="color:#9ca3af" onclick="pickS2Option(\'\',\'\')">-- Select Trade Number --</div>';
+    // Build using data attributes to avoid quote-escaping bugs with serials/models
+    let ddHtml='<div class="custom-select-opt" style="color:#9ca3af" data-id="" data-priority="false">-- Select Trade Number --</div>';
     sortedItems.forEach(i=>{
       const priLabel=i.priority?'<span class="opt-priority-badge">⚡ PRIORITY</span>':'';
       const cls='custom-select-opt'+(i.priority?' priority-opt':'');
-      const lbl=i.tradeNo+' | '+i.brand+' '+i.model+' | SN: '+i.serial;
-      ddHtml+='<div class="'+cls+'" onclick="pickS2Option(\''+i.id+'\',\''+lbl+'\','+!!i.priority+')">'
+      const lbl=(i.tradeNo+' | '+i.brand+' '+i.model+' | SN: '+i.serial).replace(/"/g,'&quot;');
+      ddHtml+='<div class="'+cls+'" data-id="'+i.id+'" data-lbl="'+lbl+'" data-priority="'+!!i.priority+'">'
         +priLabel
         +'<div class="opt-info">'
           +'<span class="opt-trade">'+i.tradeNo+'</span>'
@@ -1693,6 +1696,12 @@ function pgStep2(){
         +'</div></div>';
     });
     ddOpts.innerHTML=ddHtml;
+    // Attach click handlers via JS — safe, no inline string escaping issues
+    ddOpts.querySelectorAll('.custom-select-opt').forEach(function(el){
+      el.addEventListener('click', function(){
+        pickS2Option(this.dataset.id||'', this.dataset.lbl||'', this.dataset.priority==='true');
+      });
+    });
   },0);
 
   return html;
@@ -2089,6 +2098,17 @@ function pickS2Option(itemId, label, isPriority){
   } else {
     txt.textContent='-- Select Trade Number --';
   }
+  // Highlight the selected option
+  document.querySelectorAll('#s2ddOpts .custom-select-opt').forEach(el=>el.classList.remove('selected'));
+  if(itemId){
+    document.querySelectorAll('#s2ddOpts .custom-select-opt').forEach(el=>{
+      const onclick=el.getAttribute('onclick')||'';
+      if(onclick.includes("'"+itemId+"'")) el.classList.add('selected');
+    });
+  }
+  // Toggle green "has-value" style on the display trigger
+  const disp=document.getElementById('s2ddDisplay');
+  if(itemId) disp.classList.add('has-value'); else disp.classList.remove('has-value');
   document.getElementById('s2ddOpts').classList.remove('open');
   document.getElementById('s2ddDisplay').classList.remove('open');
   onS2TradeSelect();
