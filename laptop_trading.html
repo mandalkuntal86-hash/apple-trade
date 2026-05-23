@@ -197,6 +197,8 @@ tr:hover td{background:#f9fafb;}
 .badge-traded::before{content:'';width:6px;height:6px;border-radius:50%;background:#1a56db;display:inline-block;}
 .badge-payment{display:inline-flex;align-items:center;gap:5px;background:#ecfdf5;color:#059669;border:1px solid #a7f3d0;border-radius:20px;padding:3px 10px;font-size:12px;font-weight:600;}
 .badge-payment::before{content:'';width:6px;height:6px;border-radius:50%;background:#059669;display:inline-block;}
+.badge-priority{display:inline-flex;align-items:center;gap:5px;background:#fdf2ff;color:#7c3aed;border:1px solid #e9d5ff;border-radius:20px;padding:3px 10px;font-size:12px;font-weight:700;animation:priorityPulse 2s ease-in-out infinite;}
+@keyframes priorityPulse{0%,100%{box-shadow:0 0 0 0 rgba(124,58,237,.3);}50%{box-shadow:0 0 0 4px rgba(124,58,237,0);}}
 
 /* ACTION BUTTONS */
 .btn-step{background:#1a56db;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;white-space:nowrap;}
@@ -1402,6 +1404,7 @@ function pgStep1(){
     const statusBadge = it.status==='pending'?'<span class="badge-pending">Pending</span>'
       :it.status==='assigned'?'<span class="badge-assigned">Assigned</span>'
       :'<span class="badge-traded">Traded</span>';
+    const priorityBadge = (it.priority && it.status==='pending') ? '<span class="badge-priority">⚡ Priority</span>' : '';
     const actCells=canAct
       ?`<td><button class="btn-edit" onclick="openEditItem('${it.id}')">✎ Edit</button></td><td><button class="btn-del" onclick="openDelItem('${it.id}')">🗑</button></td>`
       :'';
@@ -1411,7 +1414,7 @@ function pgStep1(){
       <td>${it.brand}</td>
       <td>${it.model}</td>
       <td>${fmtDate(it.addedAt)}</td>
-      <td>${statusBadge}</td>
+      <td>${statusBadge}${priorityBadge ? ' '+priorityBadge : ''}</td>
       ${actCells}
     </tr>`;
   });
@@ -1464,7 +1467,7 @@ function addItem(){if(isGuest()){alert('View Only mode — you cannot add items.
   if(!serial||!model){alert('Serial Number and Model are required.');return;}
   if(store.items.find(i=>i.serial===serial)){alert('Serial number already exists!');return;}
   const tradeNo=genTradeNo();
-  store.items.push({id:'ITEM'+Date.now(),tradeNo,serial,brand,model,notes,status:'pending',addedAt:new Date().toISOString()});
+  store.items.push({id:'ITEM'+Date.now(),tradeNo,serial,brand,model,notes,status:'pending',priority:true,addedAt:new Date().toISOString()});
   save(); showPage('step1');
   setTimeout(()=>showAlert('s1alert','✓ Item added! Trade No: '+tradeNo),50);
   // 🔊 Voice: Item added successfully
@@ -1679,6 +1682,7 @@ function assignTrade(){if(isGuest()){alert('View Only mode — you cannot assign
   const emp=store.employees.find(e=>e.id===empId);
   const empName=emp?emp.name:(currentUser.role==='employee'?currentUser.name:empId);
   item.status='assigned';
+  item.priority=false;
   store.trades.push({
     id:'TRD'+Date.now(),itemId,serial:item.serial,
     tradedLaptop:{brand:tBrand,model:tModel,serial:tSerial,notes:document.getElementById('s2tNotes')?document.getElementById('s2tNotes').value.trim():''},
