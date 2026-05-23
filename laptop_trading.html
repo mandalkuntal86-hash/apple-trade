@@ -1429,7 +1429,20 @@ function pgStep1(){
   </div>
   <div id="s1alert" class="alert alert-ok"></div>
   ${!isGuest()?`<div class="fpanel">
-    <div class="fpanel-title"><span class="step-badge">STEP 1</span> Register New Laptop</div>
+    <div class="fpanel-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+      <div style="display:flex;align-items:center;gap:8px;"><span class="step-badge">STEP 1</span> Register New Laptop</div>
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none;background:#fdf2ff;border:1.5px solid #e9d5ff;border-radius:8px;padding:7px 14px;">
+        <input type="checkbox" id="s1priority" checked style="width:16px;height:16px;accent-color:#7c3aed;cursor:pointer;">
+        <span style="font-size:13px;font-weight:700;color:#7c3aed;">⚡ Mark as Priority</span>
+      </label>
+    </div>
+    <div id="s1priorityBanner" style="display:flex;align-items:center;gap:10px;background:#fdf2ff;border:1.5px solid #e9d5ff;border-radius:8px;padding:10px 14px;margin-bottom:14px;">
+      <span style="font-size:20px;">⚡</span>
+      <div>
+        <div style="font-size:13px;font-weight:700;color:#7c3aed;">Priority Item</div>
+        <div style="font-size:12px;color:#9333ea;margin-top:1px;">This item will be marked as Priority until Step 2 (Trade) is completed.</div>
+      </div>
+    </div>
     <div class="fgrid">
       <div class="fgroup"><label class="flabel">Trade Number</label><input class="finput" disabled placeholder="Auto-generated on save"></div>
       <div class="fgroup"><label class="flabel">Serial Number *</label><input class="finput" id="s1serial" placeholder="e.g. SN2024XYZ001"></div>
@@ -1456,6 +1469,14 @@ function pgStep1(){
     const fw=document.getElementById('s1formWrap');
     if(gn) gn.style.display=isGuest()?'block':'none';
     if(fw) fw.style.display=isGuest()?'none':'block';
+    // Priority checkbox toggle
+    const priCheck=document.getElementById('s1priority');
+    const priBanner=document.getElementById('s1priorityBanner');
+    if(priCheck && priBanner){
+      priCheck.addEventListener('change',()=>{
+        priBanner.style.display=priCheck.checked?'flex':'none';
+      });
+    }
   },0);
 }
 
@@ -1464,10 +1485,12 @@ function addItem(){if(isGuest()){alert('View Only mode — you cannot add items.
   const brand=document.getElementById('s1brand').value;
   const model=document.getElementById('s1model').value.trim();
   const notes=document.getElementById('s1notes').value.trim();
+  const priEl=document.getElementById('s1priority');
+  const isPriority=priEl?priEl.checked:true;
   if(!serial||!model){alert('Serial Number and Model are required.');return;}
   if(store.items.find(i=>i.serial===serial)){alert('Serial number already exists!');return;}
   const tradeNo=genTradeNo();
-  store.items.push({id:'ITEM'+Date.now(),tradeNo,serial,brand,model,notes,status:'pending',priority:true,addedAt:new Date().toISOString()});
+  store.items.push({id:'ITEM'+Date.now(),tradeNo,serial,brand,model,notes,status:'pending',priority:isPriority,addedAt:new Date().toISOString()});
   save(); showPage('step1');
   setTimeout(()=>showAlert('s1alert','✓ Item added! Trade No: '+tradeNo),50);
   // 🔊 Voice: Item added successfully
@@ -1477,12 +1500,22 @@ function addItem(){if(isGuest()){alert('View Only mode — you cannot add items.
 function openEditItem(itemId){if(!canEdit()){alert('Admin access required.');return;}
   const it=store.items.find(i=>i.id===itemId); if(!it)return;
   const bOpts=BRANDS.map(b=>`<option${b===it.brand?' selected':''}>${b}</option>`).join('');
+  const isPri=it.priority?'checked':'';
   openModal('Edit Item — '+it.tradeNo,'Step 1 · Admin Edit',
     `<div class="fgrid">
       <div class="fgroup"><label class="flabel">Serial Number</label><input class="finput" id="mSerial" value="${it.serial}"></div>
       <div class="fgroup"><label class="flabel">Brand</label><select class="finput" id="mBrand">${bOpts}</select></div>
       <div class="fgroup"><label class="flabel">Model</label><input class="finput" id="mModel" value="${it.model||''}"></div>
       <div class="fgroup"><label class="flabel">Notes</label><input class="finput" id="mNotes" value="${it.notes||''}"></div>
+      <div class="fgroup full" style="margin-top:4px">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none;background:#fdf2ff;border:1.5px solid #e9d5ff;border-radius:8px;padding:10px 14px;">
+          <input type="checkbox" id="mPriority" ${isPri} style="width:16px;height:16px;accent-color:#7c3aed;cursor:pointer;">
+          <div>
+            <div style="font-size:13px;font-weight:700;color:#7c3aed;">⚡ Priority Item</div>
+            <div style="font-size:11px;color:#9333ea;margin-top:1px;">Toggle priority status for this item (Admin only)</div>
+          </div>
+        </label>
+      </div>
     </div>`,
     `<button class="fbtn fbtn-outline" onclick="closeModal()">Cancel</button>
      <button class="fbtn fbtn-primary" onclick="saveEditItem('${itemId}')">Save Changes</button>`);
@@ -1496,6 +1529,8 @@ function saveEditItem(itemId){
   it.serial=ns; it.brand=document.getElementById('mBrand').value;
   it.model=document.getElementById('mModel').value.trim();
   it.notes=document.getElementById('mNotes').value.trim();
+  const mPri=document.getElementById('mPriority');
+  if(mPri) it.priority=mPri.checked;
   save(); closeModal(); showPage('step1');
 }
 function openDelItem(itemId){if(!canEdit()){alert('Admin access required.');return;}
