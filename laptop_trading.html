@@ -456,6 +456,25 @@ tr:hover td{background:#f9fafb;}
   .stat-row{grid-template-columns:1fr !important;}
   .emp-grid{grid-template-columns:1fr;}
 }
+
+/* ── CUSTOM PRIORITY DROPDOWN ── */
+.custom-select-wrap{position:relative;width:100%;}
+.custom-select-display{border:1px solid #d1d5db;border-radius:7px;padding:9px 36px 9px 12px;font-size:13px;color:#1a1d23;background:#fff;cursor:pointer;display:flex;align-items:center;gap:8px;transition:border-color .15s;user-select:none;min-height:40px;}
+.custom-select-display:hover,.custom-select-display.open{border-color:#1a56db;box-shadow:0 0 0 3px rgba(26,86,219,.08);}
+.custom-select-display::after{content:'▾';position:absolute;right:12px;top:50%;transform:translateY(-50%);color:#6b7280;font-size:14px;pointer-events:none;}
+.custom-select-opts{position:absolute;top:calc(100% + 4px);left:0;right:0;background:#fff;border:1px solid #d1d5db;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:999;max-height:280px;overflow-y:auto;display:none;}
+.custom-select-opts.open{display:block;}
+.custom-select-opt{padding:10px 14px;font-size:13px;color:#1a1d23;cursor:pointer;display:flex;align-items:center;gap:8px;border-bottom:1px solid #f1f3f5;transition:background .1s;}
+.custom-select-opt:last-child{border-bottom:none;}
+.custom-select-opt:hover{background:#f4f5f7;}
+.custom-select-opt.priority-opt{background:#fdf2ff;}
+.custom-select-opt.priority-opt:hover{background:#f5e6ff;}
+.custom-select-opt .opt-priority-badge{background:#7c3aed;color:#fff;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700;white-space:nowrap;flex-shrink:0;}
+.custom-select-opt .opt-placeholder{color:#9ca3af;}
+.custom-select-opt.selected{background:#eff6ff;}
+.custom-select-opt .opt-info{display:flex;flex-direction:column;gap:1px;flex:1;min-width:0;}
+.custom-select-opt .opt-trade{font-weight:700;color:#1a56db;font-size:12px;}
+.custom-select-opt .opt-detail{font-size:11px;color:#6b7280;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 </style>
 </head>
 <body>
@@ -1555,14 +1574,11 @@ function confirmDelItem(itemId){
 // ═══════════════════════════════════════════════
 function pgStep2(){
   const isAdm=isAdmin();
-  // Admin can assign/reassign any item; employees only see pending
   const availableItems = isAdm ? store.items : store.items.filter(i=>i.status==='pending');
   const sortedItems=[...availableItems].sort((a,b)=>(b.priority?1:0)-(a.priority?1:0));
-  const tradeNoOpts=sortedItems.map(i=>`<option value="${i.id}">${i.priority?'⚡ ':''  }${i.tradeNo} | ${i.brand} ${i.model} | SN: ${i.serial} [${i.status}]</option>`).join('');
   const empList=isAdm?store.employees:store.employees.filter(e=>e.id===currentUser.id);
-  // Auto-select logged-in employee
   const autoEmpId=(!isAdm&&!isGuest())?currentUser.id:'';
-  const eOpts=empList.map(e=>`<option value="${e.id}"${e.id===autoEmpId?' selected':''}>${e.name} (${e.id})</option>`).join('');
+  const eOpts=empList.map(e=>'<option value="'+e.id+'"'+(e.id===autoEmpId?' selected':'')+'>'+e.name+' ('+e.id+')</option>').join('');
 
   const assigned=store.trades.filter(t=>!t.amountRecorded);
   const actTh=isAdm?'<th>Edit</th><th>Delete</th>':'';
@@ -1570,129 +1586,116 @@ function pgStep2(){
   [...assigned].reverse().forEach(t=>{
     const it=store.items.find(i=>i.id===t.itemId)||{};
     const actCells=isAdm
-      ?`<td><button class="btn-edit" onclick="openEditAssign('${t.id}')">✎ Edit</button></td><td><button class="btn-del" onclick="openDelAssign('${t.id}')">🗑</button></td>`
+      ?'<td><button class="btn-edit" onclick="openEditAssign(\''+t.id+'\')">✎ Edit</button></td><td><button class="btn-del" onclick="openDelAssign(\''+t.id+'\')">🗑</button></td>'
       :'';
     const tl=t.tradedLaptop||{};
-    aRows+=`<tr>
-      <td>
-        <span class="trade-no" style="cursor:pointer;text-decoration:underline" onclick="showPage('tradeView','${it.id}')">${it.tradeNo||'—'}</span>
-        ${it.priority?'<span class="badge-priority" style="margin-left:5px;font-size:11px">⚡ Priority</span>':''}
-      </td>
-      <td>
-        <div style="font-size:11px;color:#9ca3af;margin-bottom:2px">Our Item</div>
-        <div style="font-weight:600">${it.brand||'—'} ${it.model||''}</div>
-        <div style="font-family:monospace;font-size:11px;color:#6b7280">${t.serial}</div>
-      </td>
-      <td>
-        <div style="font-size:11px;color:#059669;margin-bottom:2px;font-weight:600">Trade-In Laptop</div>
-        <div style="font-weight:600">${tl.brand||'—'} ${tl.model||''}</div>
-        <div style="font-family:monospace;font-size:11px;color:#6b7280">${tl.serial||'—'}</div>
-      </td>
-      <td>${t.employeeName}</td>
-      <td>${fmtDate(t.assignedAt||t.tradedAt)}</td>
-      <td>${daysBadge(t.assignedAt||t.tradedAt,null,false)}</td>
-      <td><span class="badge-traded">⇄ Traded</span></td>
-      ${actCells}
-    </tr>`;
+    const priTag=it.priority?'<span class="badge-priority" style="margin-left:5px;font-size:11px">⚡ Priority</span>':'';
+    const tvLink='showPage(&quot;tradeView&quot;,&quot;'+it.id+'&quot;)';
+    aRows+='<tr>'
+      +'<td><span class="trade-no" style="cursor:pointer;text-decoration:underline" onclick="showPage(&apos;tradeView&apos;,&apos;'+it.id+'&apos;)">'+(it.tradeNo||'—')+'</span>'+priTag+'</td>'
+      +'<td><div style="font-size:11px;color:#9ca3af;margin-bottom:2px">Our Item</div><div style="font-weight:600">'+(it.brand||'—')+' '+(it.model||'')+'</div><div style="font-family:monospace;font-size:11px;color:#6b7280">'+t.serial+'</div></td>'
+      +'<td><div style="font-size:11px;color:#059669;margin-bottom:2px;font-weight:600">Trade-In Laptop</div><div style="font-weight:600">'+(tl.brand||'—')+' '+(tl.model||'')+'</div><div style="font-family:monospace;font-size:11px;color:#6b7280">'+(tl.serial||'—')+'</div></td>'
+      +'<td>'+t.employeeName+'</td>'
+      +'<td>'+fmtDate(t.assignedAt||t.tradedAt)+'</td>'
+      +'<td>'+daysBadge(t.assignedAt||t.tradedAt,null,false)+'</td>'
+      +'<td><span class="badge-traded">⇄ Traded</span></td>'
+      +actCells
+      +'</tr>';
   });
-  if(!aRows) aRows=`<tr><td colspan="${isAdm?8:6}" class="no-data">No pending assignments.</td></tr>`;
+  if(!aRows) aRows='<tr><td colspan="'+(isAdm?8:6)+'" class="no-data">No pending assignments.</td></tr>';
 
-  return `
-  <div class="topbar"><div><div class="page-title">Step 2 — Assign Trade</div><div class="page-sub">Select trade number → confirm laptop → assign employee</div></div></div>
-  <div class="steps-bar">
-    <div class="step-item done"><div class="step-num-bubble">✓</div><div class="step-text"><div class="step-label-text">Add Item</div><div class="step-sub-text">Completed</div></div></div>
-    <div class="step-item active"><div class="step-num-bubble">2</div><div class="step-text"><div class="step-label-text">Traded</div><div class="step-sub-text">Link to employee</div></div></div>
-    <div class="step-item idle"><div class="step-num-bubble">3</div><div class="step-text"><div class="step-label-text">Payment Received</div><div class="step-sub-text">Enter amount</div></div></div>
-  </div>
-  <div id="s2alert" class="alert alert-ok"></div>
-    ${isGuest()?'<div style="display:flex;align-items:center;gap:12px"><span style="font-size:24px">👁</span><div><div style="font-weight:700;color:#92400e;margin-bottom:2px">View Only Mode</div><div style="font-size:13px;color:#b45309">You are in Guest mode. Assigning trades is disabled.</div></div></div>':`<div class="fpanel-title"><span class="step-badge">STEP 2</span> Assign Item to Employee</div>`}
+  // Build employee section HTML
+  let empSection='';
+  if(!isAdm&&!isGuest()){
+    empSection='<div style="display:flex;align-items:center;gap:10px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 14px;">'
+      +'<div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#1a56db,#7c3aed);color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">'+currentUser.name.charAt(0).toUpperCase()+'</div>'
+      +'<div><div style="font-size:13px;font-weight:700;color:#1a56db">'+currentUser.name+'</div><div style="font-size:11px;color:#6b7280">ID: '+currentUser.id+' — Auto-assigned from login</div></div>'
+      +'</div><input type="hidden" id="s2emp" value="'+currentUser.id+'">';
+  } else {
+    empSection='<select class="finput" id="s2emp"><option value="">-- Select Employee --</option>'+eOpts+'</select>';
+  }
 
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:18px">
-      <div style="width:22px;height:22px;border-radius:50%;background:#1a56db;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">A</div>
-      <span style="font-size:13px;font-weight:600;color:#374151">Select Pending Trade Number</span>
-    </div>
-    <div class="fgrid" style="margin-bottom:0">
-      <div class="fgroup">
-        <label class="flabel">Trade Number *</label>
-        <select class="finput" id="s2tradeNo" onchange="onS2TradeSelect()">
-          <option value="">-- Select Trade Number --</option>${tradeNoOpts}
-        </select>
-      </div>
-    </div>
+  const formHTML = isGuest()
+    ? '<div class="fpanel" style="background:#fffbeb;border:1px solid #fde68a;"><div style="display:flex;align-items:center;gap:12px"><span style="font-size:24px">👁</span><div><div style="font-weight:700;color:#92400e;margin-bottom:2px">View Only Mode</div><div style="font-size:13px;color:#b45309">You are in Guest mode. Assigning trades is disabled.</div></div></div></div>'
+    : '<div class="fpanel">'
+      +'<div class="fpanel-title"><span class="step-badge">STEP 2</span> Assign Item to Employee</div>'
+      +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:18px">'
+        +'<div style="width:22px;height:22px;border-radius:50%;background:#1a56db;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">A</div>'
+        +'<span style="font-size:13px;font-weight:600;color:#374151">Select Pending Trade Number</span>'
+      +'</div>'
+      +'<div class="fgrid" style="margin-bottom:0">'
+        +'<div class="fgroup" style="position:relative">'
+          +'<label class="flabel">Trade Number *</label>'
+          +'<input type="hidden" id="s2tradeNo">'
+          +'<div class="custom-select-wrap" id="s2ddWrap">'
+            +'<div class="custom-select-display" id="s2ddDisplay" onclick="toggleS2Dropdown()">'
+              +'<span id="s2ddText" class="opt-placeholder">-- Select Trade Number --</span>'
+            +'</div>'
+            +'<div class="custom-select-opts" id="s2ddOpts"></div>'
+          +'</div>'
+        +'</div>'
+      +'</div>'
+      +'<div id="s2laptopBox" style="display:none;margin-top:18px">'
+        +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">'
+          +'<div style="width:22px;height:22px;border-radius:50%;background:#059669;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">B</div>'
+          +'<div><div style="font-size:13px;font-weight:700;color:#059669">Trade-In Laptop Details</div><div style="font-size:11px;color:#9ca3af;margin-top:1px">যে laptop দিয়ে trade করা হবে তার details দিন</div></div>'
+        +'</div>'
+        +'<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:16px 18px;">'
+          +'<div class="fgrid">'
+            +'<div class="fgroup"><label class="flabel" style="color:#059669">Trade-In Brand *</label><select class="finput" id="s2tBrand" style="border-color:#bbf7d0;"><option value="">-- Select Brand --</option>'+BRANDS.map(b=>'<option>'+b+'</option>').join('')+'</select></div>'
+            +'<div class="fgroup"><label class="flabel" style="color:#059669">Trade-In Model *</label><input class="finput" id="s2tModel" placeholder="e.g. MacBook Air M2" style="border-color:#bbf7d0;"></div>'
+            +'<div class="fgroup"><label class="flabel" style="color:#059669">Trade-In Serial No. *</label><input class="finput" id="s2tSerial" placeholder="e.g. C02XG2JJLVCG" style="border-color:#bbf7d0;"></div>'
+            +'<div class="fgroup"><label class="flabel" style="color:#059669">Trade-In Notes</label><input class="finput" id="s2tNotes" placeholder="Condition, remarks..." style="border-color:#bbf7d0;"></div>'
+          +'</div>'
+        +'</div>'
+      +'</div>'
+      +'<div id="s2empBox" style="display:none;margin-top:18px">'
+        +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">'
+          +'<div style="width:22px;height:22px;border-radius:50%;background:#7c3aed;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">C</div>'
+          +'<span style="font-size:13px;font-weight:600;color:#374151">Assign To Employee</span>'
+        +'</div>'
+        +'<div class="fgrid"><div class="fgroup"><label class="flabel">Assign To Employee *</label>'+empSection+'</div></div>'
+      +'</div>'
+      +'<div class="factions" style="margin-top:20px">'
+        +'<button class="fbtn fbtn-primary" onclick="assignTrade()">Assign Trade →</button>'
+      +'</div>'
+    +'</div>';
 
-    <div id="s2laptopBox" style="display:none;margin-top:18px">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
-        <div style="width:22px;height:22px;border-radius:50%;background:#059669;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">B</div>
-        <div>
-          <div style="font-size:13px;font-weight:700;color:#059669">Trade-In Laptop Details</div>
-          <div style="font-size:11px;color:#9ca3af;margin-top:1px">যে laptop দিয়ে trade করা হবে তার details দিন</div>
-        </div>
-      </div>
-      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:16px 18px;">
-        <div class="fgrid">
-          <div class="fgroup">
-            <label class="flabel" style="color:#059669">Trade-In Brand *</label>
-            <select class="finput" id="s2tBrand" style="border-color:#bbf7d0;">
-              <option value="">-- Select Brand --</option>
-              ${BRANDS.map(b=>'<option>'+b+'</option>').join('')}
-            </select>
-          </div>
-          <div class="fgroup">
-            <label class="flabel" style="color:#059669">Trade-In Model *</label>
-            <input class="finput" id="s2tModel" placeholder="e.g. MacBook Air M2" style="border-color:#bbf7d0;">
-          </div>
-          <div class="fgroup">
-            <label class="flabel" style="color:#059669">Trade-In Serial No. *</label>
-            <input class="finput" id="s2tSerial" placeholder="e.g. C02XG2JJLVCG" style="border-color:#bbf7d0;">
-          </div>
-          <div class="fgroup">
-            <label class="flabel" style="color:#059669">Trade-In Notes</label>
-            <input class="finput" id="s2tNotes" placeholder="Condition, remarks..." style="border-color:#bbf7d0;">
-          </div>
-        </div>
-      </div>
-    </div>
+  const html = '<div class="topbar"><div><div class="page-title">Step 2 — Assign Trade</div><div class="page-sub">Select trade number → confirm laptop → assign employee</div></div></div>'
+    +'<div class="steps-bar">'
+      +'<div class="step-item done"><div class="step-num-bubble">✓</div><div class="step-text"><div class="step-label-text">Add Item</div><div class="step-sub-text">Completed</div></div></div>'
+      +'<div class="step-item active"><div class="step-num-bubble">2</div><div class="step-text"><div class="step-label-text">Traded</div><div class="step-sub-text">Link to employee</div></div></div>'
+      +'<div class="step-item idle"><div class="step-num-bubble">3</div><div class="step-text"><div class="step-label-text">Payment Received</div><div class="step-sub-text">Enter amount</div></div></div>'
+    +'</div>'
+    +'<div id="s2alert" class="alert alert-ok"></div>'
+    +formHTML
+    +'<div class="tpanel">'
+      +'<div class="tpanel-head"><div class="tpanel-title">Traded — Awaiting Payment <span style="background:#eff6ff;color:#1a56db;border:1px solid #bfdbfe;border-radius:20px;padding:2px 10px;font-size:12px;margin-left:6px">'+assigned.length+'</span></div></div>'
+      +'<div class="tbl-wrap"><table>'
+        +'<thead><tr><th>Trade No.</th><th>Our Item (Brand/Model/Serial)</th><th>Trade-In Laptop</th><th>Employee</th><th>Traded On</th><th>Days Pending</th><th>Status</th>'+actTh+'</tr></thead>'
+        +'<tbody>'+aRows+'</tbody>'
+      +'</table></div>'
+    +'</div>';
 
-    <div id="s2empBox" style="display:none;margin-top:18px">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
-        <div style="width:22px;height:22px;border-radius:50%;background:#7c3aed;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">C</div>
-        <span style="font-size:13px;font-weight:600;color:#374151">Assign To Employee</span>
-      </div>
-      <div class="fgrid">
-        <div class="fgroup">
-          <label class="flabel">Assign To Employee *</label>
-          ${!isAdm&&!isGuest()?
-            `<div style="display:flex;align-items:center;gap:10px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 14px;">
-              <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#1a56db,#7c3aed);color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${currentUser.name.charAt(0).toUpperCase()}</div>
-              <div>
-                <div style="font-size:13px;font-weight:700;color:#1a56db">${currentUser.name}</div>
-                <div style="font-size:11px;color:#6b7280">ID: ${currentUser.id} — Auto-assigned from login</div>
-              </div>
-            </div>
-            <input type="hidden" id="s2emp" value="${currentUser.id}">`
-            :`<select class="finput" id="s2emp"><option value="">-- Select Employee --</option>${eOpts}</select>`
-          }
-        </div>
-      </div>
-    </div>
-
-    <div class="factions" style="margin-top:20px">
-      <button class="fbtn fbtn-primary" onclick="assignTrade()">Assign Trade →</button>
-    </div>\`}
-  </div>
-  <div class="tpanel">
-    <div class="tpanel-head"><div class="tpanel-title">Traded — Awaiting Payment <span style="background:#eff6ff;color:#1a56db;border:1px solid #bfdbfe;border-radius:20px;padding:2px 10px;font-size:12px;margin-left:6px">${assigned.length}</span></div></div>
-    <div class="tbl-wrap"><table>
-      <thead><tr><th>Trade No.</th><th>Our Item (Brand/Model/Serial)</th><th>Trade-In Laptop</th><th>Employee</th><th>Traded On</th><th>Days Pending</th><th>Status</th>${actTh}</tr></thead>
-      <tbody>${aRows}</tbody>
-    </table></div>
-  </div>`;
   setTimeout(()=>{
-    const gn=document.getElementById('s2guestNotice');
-    const fw=document.getElementById('s2formWrap');
-    if(gn) gn.style.display=isGuest()?'block':'none';
-    if(fw) fw.style.display=isGuest()?'none':'block';
+    const ddOpts=document.getElementById('s2ddOpts');
+    if(!ddOpts) return;
+    let ddHtml='<div class="custom-select-opt" style="color:#9ca3af" onclick="pickS2Option(\'\',\'\')">-- Select Trade Number --</div>';
+    sortedItems.forEach(i=>{
+      const priLabel=i.priority?'<span class="opt-priority-badge">⚡ PRIORITY</span>':'';
+      const cls='custom-select-opt'+(i.priority?' priority-opt':'');
+      const lbl=i.tradeNo+' | '+i.brand+' '+i.model+' | SN: '+i.serial;
+      ddHtml+='<div class="'+cls+'" onclick="pickS2Option(\''+i.id+'\',\''+lbl+'\','+!!i.priority+')">'
+        +priLabel
+        +'<div class="opt-info">'
+          +'<span class="opt-trade">'+i.tradeNo+'</span>'
+          +'<span class="opt-detail">'+i.brand+' '+i.model+' · SN: '+i.serial+' ['+i.status+']</span>'
+        +'</div></div>';
+    });
+    ddOpts.innerHTML=ddHtml;
   },0);
+
+  return html;
 }
 
 function onS2TradeSelect(){
@@ -2067,9 +2070,42 @@ window.addEmployee = addEmployee;
 window.deleteEmployee = deleteEmployee;
 window.exportData = exportData;
 window.clearAllData = clearAllData;
+
+function toggleS2Dropdown(){
+  const opts=document.getElementById('s2ddOpts');
+  const disp=document.getElementById('s2ddDisplay');
+  const isOpen=opts.classList.contains('open');
+  // close all first
+  document.querySelectorAll('.custom-select-opts.open').forEach(el=>el.classList.remove('open'));
+  document.querySelectorAll('.custom-select-display.open').forEach(el=>el.classList.remove('open'));
+  if(!isOpen){opts.classList.add('open');disp.classList.add('open');}
+}
+function pickS2Option(itemId, label, isPriority){
+  document.getElementById('s2tradeNo').value=itemId;
+  const txt=document.getElementById('s2ddText');
+  txt.className=itemId?'':'opt-placeholder';
+  if(itemId){
+    txt.innerHTML=isPriority?`<span style="background:#7c3aed;color:#fff;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700;margin-right:6px">⚡ PRIORITY</span>${label}`:label;
+  } else {
+    txt.textContent='-- Select Trade Number --';
+  }
+  document.getElementById('s2ddOpts').classList.remove('open');
+  document.getElementById('s2ddDisplay').classList.remove('open');
+  onS2TradeSelect();
+}
+// Close dropdown on outside click
+document.addEventListener('click',function(e){
+  if(!e.target.closest('#s2ddWrap')){
+    document.querySelectorAll('.custom-select-opts.open').forEach(el=>el.classList.remove('open'));
+    document.querySelectorAll('.custom-select-display.open').forEach(el=>el.classList.remove('open'));
+  }
+});
+
 window.searchTradeNo = searchTradeNo;
 window.onS3TradeSelect = onS3TradeSelect;
 window.onS2TradeSelect = onS2TradeSelect;
+window.toggleS2Dropdown = toggleS2Dropdown;
+window.pickS2Option = pickS2Option;
 window.importData = importData;
 window.setDateFilter = setDateFilter;
 
