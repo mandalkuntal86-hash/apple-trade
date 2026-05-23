@@ -1557,7 +1557,8 @@ function pgStep2(){
   const isAdm=isAdmin();
   // Admin can assign/reassign any item; employees only see pending
   const availableItems = isAdm ? store.items : store.items.filter(i=>i.status==='pending');
-  const tradeNoOpts=availableItems.map(i=>`<option value="${i.id}">${i.tradeNo} | ${i.brand} ${i.model} | SN: ${i.serial} [${i.status}]</option>`).join('');
+  const sortedItems=[...availableItems].sort((a,b)=>(b.priority?1:0)-(a.priority?1:0));
+  const tradeNoOpts=sortedItems.map(i=>`<option value="${i.id}">${i.priority?'⚡ ':''  }${i.tradeNo} | ${i.brand} ${i.model} | SN: ${i.serial} [${i.status}]</option>`).join('');
   const empList=isAdm?store.employees:store.employees.filter(e=>e.id===currentUser.id);
   // Auto-select logged-in employee
   const autoEmpId=(!isAdm&&!isGuest())?currentUser.id:'';
@@ -1573,7 +1574,10 @@ function pgStep2(){
       :'';
     const tl=t.tradedLaptop||{};
     aRows+=`<tr>
-      <td><span class="trade-no" style="cursor:pointer;text-decoration:underline" onclick="showPage('tradeView','${it.id}')">${it.tradeNo||'—'}</span></td>
+      <td>
+        <span class="trade-no" style="cursor:pointer;text-decoration:underline" onclick="showPage('tradeView','${it.id}')">${it.tradeNo||'—'}</span>
+        ${it.priority?'<span class="badge-priority" style="margin-left:5px;font-size:11px">⚡ Priority</span>':''}
+      </td>
       <td>
         <div style="font-size:11px;color:#9ca3af;margin-bottom:2px">Our Item</div>
         <div style="font-weight:600">${it.brand||'—'} ${it.model||''}</div>
