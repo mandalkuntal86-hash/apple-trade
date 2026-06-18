@@ -1801,6 +1801,7 @@ function confirmDelAssign(tradeId){
 // STEP 3 — RECORD AMOUNT (new flow)
 // Substeps: A) pick pending payment trade-no → B) auto-shows laptop+employee → C) enter amount
 // ═══════════════════════════════════════════════
+let s3Mode='single'; // 'single' or 'multi' (lump sum across several trades)
 function pgStep3(){
   const isAdm=isAdmin();
   // Admin sees ALL trades; others only see trades pending payment
@@ -1843,6 +1844,21 @@ function pgStep3(){
   });
   if(!cRows) cRows=`<tr><td colspan="${isAdm?9:7}" class="no-data">No completed trades yet.</td></tr>`;
 
+  // Candidates for lump-sum (multi-trade) payment — any trade not yet paid
+  const lumpCandidates = store.trades.filter(t=>!t.amountRecorded);
+  let lumpRows = lumpCandidates.map(t=>{
+    const it=store.items.find(i=>i.id===t.itemId)||{};
+    const tl=t.tradedLaptop||{};
+    return `<label style="display:flex;align-items:center;gap:10px;padding:9px 10px;border:1px solid #e2e5ea;border-radius:8px;margin-bottom:6px;cursor:pointer">
+      <input type="checkbox" class="s3lumpChk" value="${t.id}" onchange="updateLumpSumPreview()" style="width:16px;height:16px;accent-color:#7c3aed;cursor:pointer;flex-shrink:0">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:600"><span class="trade-no">${it.tradeNo||'—'}</span>&nbsp; ${it.brand||''} ${it.model||''}</div>
+        <div style="font-size:11px;color:#6b7280">SN: ${t.serial||'—'} · ${t.employeeName||'—'}${tl.brand?(' · Trade-in: '+tl.brand+' '+(tl.model||'')):''} · Traded: ${fmtDate(t.assignedAt||t.tradedAt)}</div>
+      </div>
+    </label>`;
+  }).join('');
+  if(!lumpRows) lumpRows='<div class="no-data">No pending payments available for lump-sum entry.</div>';
+
   return `
   <div class="topbar"><div><div class="page-title">Step 3 — Record Amount</div><div class="page-sub">Select pending payment → confirm details → enter amount received</div></div></div>
   <div class="steps-bar">
@@ -1851,45 +1867,88 @@ function pgStep3(){
     <div class="step-item active"><div class="step-num-bubble">3</div><div class="step-text"><div class="step-label-text">Record Amount</div><div class="step-sub-text">Enter amount</div></div></div>
   </div>
   <div id="s3alert" class="alert alert-ok"></div>
-    ${isGuest()?'<div style="display:flex;align-items:center;gap:12px"><span style="font-size:24px">👁</span><div><div style="font-weight:700;color:#92400e;margin-bottom:2px">View Only Mode</div><div style="font-size:13px;color:#b45309">You are in Guest mode. Recording payments is disabled.</div></div></div>':`<div class="fpanel-title"><span class="step-badge">STEP 3</span> Record Trading Amount</div>`}
 
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
-      <div style="width:22px;height:22px;border-radius:50%;background:#1a56db;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">A</div>
-      <span style="font-size:13px;font-weight:600;color:#374151">Select Pending Payment (Trade Number)</span>
-    </div>
-    <div class="fgrid" style="margin-bottom:0">
-      <div class="fgroup">
-        <label class="flabel">Trade Number *</label>
-        <select class="finput" id="s3trade" onchange="onS3TradeSelect()">
-          <option value="">-- Select Assigned Trade --</option>${tOpts}
-        </select>
+  <div style="display:flex;gap:8px;margin-bottom:18px">
+    <button class="ftab${s3Mode==='single'?' active':''}" onclick="setS3Mode('single')">👤 Single Trade</button>
+    <button class="ftab${s3Mode==='multi'?' active':''}" onclick="setS3Mode('multi')">💰 Multiple Trades — Lump Sum</button>
+  </div>
+
+    ${isGuest()?'<div style="display:flex;align-items:center;gap:12px"><span style="font-size:24px">👁</span><div><div style="font-weight:700;color:#92400e;margin-bottom:2px">View Only Mode</div><div style="font-size:13px;color:#b45309">You are in Guest mode. Recording payments is disabled.</div></div></div>':''}
+
+    <div id="s3singleWrap" style="display:${s3Mode==='single'?'block':'none'}">
+      <div class="fpanel-title"><span class="step-badge">STEP 3</span> Record Trading Amount</div>
+
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+        <div style="width:22px;height:22px;border-radius:50%;background:#1a56db;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">A</div>
+        <span style="font-size:13px;font-weight:600;color:#374151">Select Pending Payment (Trade Number)</span>
+      </div>
+      <div class="fgrid" style="margin-bottom:0">
+        <div class="fgroup">
+          <label class="flabel">Trade Number *</label>
+          <select class="finput" id="s3trade" onchange="onS3TradeSelect()">
+            <option value="">-- Select Assigned Trade --</option>${tOpts}
+          </select>
+        </div>
+      </div>
+
+      <div id="s3detailBox" style="display:none;margin-top:18px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+          <div style="width:22px;height:22px;border-radius:50%;background:#059669;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">B</div>
+          <span style="font-size:13px;font-weight:600;color:#374151">Trade Details</span>
+        </div>
+        <div class="preview-box show" id="s3detailPreview"></div>
+      </div>
+
+      <div id="s3amtBox" style="display:none;margin-top:18px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+          <div style="width:22px;height:22px;border-radius:50%;background:#7c3aed;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">C</div>
+          <span style="font-size:13px;font-weight:600;color:#374151">Enter Amount Received</span>
+        </div>
+        <div class="fgrid">
+          <div class="fgroup">
+            <label class="flabel">Trading Amount (₹) *</label>
+            <input class="finput" id="s3amount" type="number" placeholder="e.g. 25000" min="0">
+          </div>
+        </div>
+      </div>
+
+      <div class="factions" style="margin-top:20px">
+        <button class="fbtn fbtn-primary" onclick="recordAmount()">✓ Confirm & Complete Trade</button>
       </div>
     </div>
 
-    <div id="s3detailBox" style="display:none;margin-top:18px">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
-        <div style="width:22px;height:22px;border-radius:50%;background:#059669;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">B</div>
-        <span style="font-size:13px;font-weight:600;color:#374151">Trade Details</span>
-      </div>
-      <div class="preview-box show" id="s3detailPreview"></div>
-    </div>
+    <div id="s3multiWrap" style="display:${s3Mode==='multi'?'block':'none'}">
+      <div class="fpanel-title"><span class="step-badge" style="background:#7c3aed">LUMP SUM</span> Record One Payment for Multiple Trades</div>
+      <div style="font-size:12px;color:#6b7280;margin-bottom:18px">Use this when a customer pays one combined amount covering several trade-ins. The total is split evenly across the trades you select below.</div>
 
-    <div id="s3amtBox" style="display:none;margin-top:18px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="width:22px;height:22px;border-radius:50%;background:#1a56db;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">A</div>
+          <span style="font-size:13px;font-weight:600;color:#374151">Select Trades Covered By This Payment</span>
+        </div>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#374151;cursor:pointer">
+          <input type="checkbox" id="s3lumpSelectAll" onchange="toggleLumpSelectAll(this.checked)" style="width:15px;height:15px;accent-color:#1a56db;cursor:pointer">
+          Select All
+        </label>
+      </div>
+      <div id="s3lumpList" style="max-height:280px;overflow-y:auto;border:1px solid #e2e5ea;border-radius:8px;padding:10px;margin-bottom:18px">${lumpRows}</div>
+
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
-        <div style="width:22px;height:22px;border-radius:50%;background:#7c3aed;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">C</div>
-        <span style="font-size:13px;font-weight:600;color:#374151">Enter Amount Received</span>
+        <div style="width:22px;height:22px;border-radius:50%;background:#7c3aed;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">B</div>
+        <span style="font-size:13px;font-weight:600;color:#374151">Enter Lump Sum Total</span>
       </div>
       <div class="fgrid">
         <div class="fgroup">
-          <label class="flabel">Trading Amount (₹) *</label>
-          <input class="finput" id="s3amount" type="number" placeholder="e.g. 25000" min="0">
+          <label class="flabel">Total Amount Received (₹) *</label>
+          <input class="finput" id="s3lumpAmount" type="number" placeholder="e.g. 75000" min="0" oninput="updateLumpSumPreview()">
         </div>
       </div>
-    </div>
+      <div id="s3lumpPreview" style="margin-top:4px;margin-bottom:6px"></div>
 
-    <div class="factions" style="margin-top:20px">
-      <button class="fbtn fbtn-primary" onclick="recordAmount()">✓ Confirm & Complete Trade</button>
-    </div>\`}
+      <div class="factions" style="margin-top:20px">
+        <button class="fbtn fbtn-primary" onclick="recordLumpSum()">✓ Confirm & Complete Selected Trades</button>
+      </div>
+    </div>
   </div>
   <div class="tpanel">
     <div class="tpanel-head"><div class="tpanel-title">Payment Received <span style="background:#ecfdf5;color:#059669;border:1px solid #a7f3d0;border-radius:20px;padding:2px 10px;font-size:12px;margin-left:6px">${completed.length}</span></div></div>
@@ -1954,6 +2013,54 @@ function recordAmount(){if(isGuest()){alert('View Only mode — you cannot recor
   setTimeout(()=>showAlert('s3alert','✓ Status: Payment Received! Trade complete.'),50);
   // 🔊 Voice: Payment recorded, trade fully complete
   setTimeout(()=>speak('Payment received!'), 200);
+}
+
+// ── Lump sum: one payment split across multiple selected trades ──
+function setS3Mode(mode){
+  s3Mode=mode;
+  showPage('step3');
+}
+function toggleLumpSelectAll(checked){
+  document.querySelectorAll('.s3lumpChk').forEach(c=>{c.checked=checked;});
+  updateLumpSumPreview();
+}
+function updateLumpSumPreview(){
+  const prev=document.getElementById('s3lumpPreview');
+  if(!prev) return;
+  const chks=[...document.querySelectorAll('.s3lumpChk:checked')];
+  const amtEl=document.getElementById('s3lumpAmount');
+  const amt=amtEl?parseFloat(amtEl.value):0;
+  if(chks.length===0){
+    prev.innerHTML='<div style="font-size:12px;color:#9ca3af">Select at least one trade above.</div>';
+    return;
+  }
+  if(!amt||amt<=0){
+    prev.innerHTML=`<div style="font-size:12px;color:#9ca3af">${chks.length} trade(s) selected — enter the lump sum amount to see the split.</div>`;
+    return;
+  }
+  const each=amt/chks.length;
+  prev.innerHTML=`<div style="background:#f5f3ff;border:1px solid #ddd6fe;border-radius:8px;padding:10px 14px;font-size:13px;color:#374151"><strong>${chks.length}</strong> trade(s) selected &nbsp;·&nbsp; ${fmtAmt(amt)} ÷ ${chks.length} = <strong style="color:#7c3aed">${fmtAmt(each)}</strong> each <span style="color:#9ca3af">(split evenly)</span></div>`;
+}
+function recordLumpSum(){if(isGuest()){alert('View Only mode — you cannot record amounts. Please login as Admin or Employee.');return;}
+  const chks=[...document.querySelectorAll('.s3lumpChk:checked')].map(c=>c.value);
+  const amtEl=document.getElementById('s3lumpAmount');
+  const total=amtEl?parseFloat(amtEl.value):0;
+  if(chks.length===0){alert('Please select at least one trade.');return;}
+  if(!total||total<=0){alert('Please enter a valid lump sum amount.');return;}
+  const n=chks.length;
+  const base=Math.floor((total/n)*100)/100;
+  let allocated=0;
+  chks.forEach((id,idx)=>{
+    const trade=store.trades.find(t=>t.id===id); if(!trade)return;
+    const share = (idx===n-1) ? Math.round((total-allocated)*100)/100 : base;
+    if(idx!==n-1) allocated+=share;
+    trade.amount=share; trade.amountRecorded=true; trade.paymentAt=new Date().toISOString(); trade.tradedAt=trade.tradedAt||new Date().toISOString();
+    trade.lumpSum=true; trade.lumpSumTotal=total; trade.lumpSumCount=n;
+    const item=store.items.find(i=>i.id===trade.itemId); if(item)item.status='traded';
+  });
+  save(); showPage('step3');
+  setTimeout(()=>showAlert('s3alert',`✓ Lump sum of ${fmtAmt(total)} recorded across ${n} trade(s). All marked complete!`),50);
+  setTimeout(()=>speak('Lump sum payment recorded!'), 200);
 }
 
 function openEditAmt(tradeId){if(!isAdmin()){alert('Admin access required to edit or delete.');return;}
@@ -2123,6 +2230,10 @@ document.addEventListener('click',function(e){
 
 window.searchTradeNo = searchTradeNo;
 window.onS3TradeSelect = onS3TradeSelect;
+window.setS3Mode = setS3Mode;
+window.toggleLumpSelectAll = toggleLumpSelectAll;
+window.updateLumpSumPreview = updateLumpSumPreview;
+window.recordLumpSum = recordLumpSum;
 window.onS2TradeSelect = onS2TradeSelect;
 window.toggleS2Dropdown = toggleS2Dropdown;
 window.pickS2Option = pickS2Option;
