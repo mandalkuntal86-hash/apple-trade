@@ -1473,7 +1473,8 @@ function pgStep1(){
       <div class="fgroup"><label class="flabel">Brand *</label>
         <select class="finput" id="s1brand">${BRANDS.map(b=>'<option>'+b+'</option>').join('')}</select>
       </div>
-      <div class="fgroup"><label class="flabel">Model *</label><input class="finput" id="s1model" placeholder="e.g. MacBook Pro 14"></div>
+      <div class="fgroup"><label class="flabel">Model *</label><input class="finput" id="s1model" list="s1modelSuggestions" placeholder="e.g. MacBook Pro 14" autocomplete="off"></div>
+      <datalist id="s1modelSuggestions">${[...new Set(store.items.map(i=>i.model).filter(Boolean))].sort().map(m=>`<option value="${m.replace(/"/g,'&quot;')}"></option>`).join('')}</datalist>
       <div class="fgroup full"><label class="flabel">Notes (optional)</label><input class="finput" id="s1notes" placeholder="Any remarks about this item"></div>
     </div>
     <div class="factions">
@@ -1529,7 +1530,8 @@ function openEditItem(itemId){if(!canEdit()){alert('Admin access required.');ret
     `<div class="fgrid">
       <div class="fgroup"><label class="flabel">Serial Number</label><input class="finput" id="mSerial" value="${it.serial}"></div>
       <div class="fgroup"><label class="flabel">Brand</label><select class="finput" id="mBrand">${bOpts}</select></div>
-      <div class="fgroup"><label class="flabel">Model</label><input class="finput" id="mModel" value="${it.model||''}"></div>
+      <div class="fgroup"><label class="flabel">Model</label><input class="finput" id="mModel" list="mModelSuggestions" value="${it.model||''}" autocomplete="off"></div>
+      <datalist id="mModelSuggestions">${[...new Set(store.items.map(i=>i.model).filter(Boolean))].sort().map(m=>`<option value="${m.replace(/"/g,'&quot;')}"></option>`).join('')}</datalist>
       <div class="fgroup"><label class="flabel">Notes</label><input class="finput" id="mNotes" value="${it.notes||''}"></div>
       <div class="fgroup full" style="margin-top:4px">
         <label style="display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none;background:#fdf2ff;border:1.5px solid #e9d5ff;border-radius:8px;padding:10px 14px;">
@@ -1645,7 +1647,8 @@ function pgStep2(){
         +'<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:16px 18px;">'
           +'<div class="fgrid">'
             +'<div class="fgroup"><label class="flabel" style="color:#059669">Trade-In Brand *</label><select class="finput" id="s2tBrand" style="border-color:#bbf7d0;"><option value="">-- Select Brand --</option>'+BRANDS.map(b=>'<option>'+b+'</option>').join('')+'</select></div>'
-            +'<div class="fgroup"><label class="flabel" style="color:#059669">Trade-In Model *</label><input class="finput" id="s2tModel" placeholder="e.g. MacBook Air M2" style="border-color:#bbf7d0;"></div>'
+            +'<div class="fgroup"><label class="flabel" style="color:#059669">Trade-In Model *</label><input class="finput" id="s2tModel" list="s2tModelSuggestions" placeholder="e.g. MacBook Air M2" style="border-color:#bbf7d0;" autocomplete="off"></div>'
+            +'<datalist id="s2tModelSuggestions">'+[...new Set(store.trades.map(t=>t.tradedLaptop&&t.tradedLaptop.model).filter(Boolean))].sort().map(function(m){return '<option value="'+m.replace(/"/g,'&quot;')+'"></option>';}).join('')+'</datalist>'
             +'<div class="fgroup"><label class="flabel" style="color:#059669">Trade-In Serial No. *</label><input class="finput" id="s2tSerial" placeholder="e.g. C02XG2JJLVCG" style="border-color:#bbf7d0;"></div>'
             +'<div class="fgroup"><label class="flabel" style="color:#059669">Trade-In Notes</label><input class="finput" id="s2tNotes" placeholder="Condition, remarks..." style="border-color:#bbf7d0;"></div>'
           +'</div>'
@@ -1761,7 +1764,8 @@ function openEditAssign(tradeId){if(!isAdmin()){alert('Admin access required to 
       <div class="fgroup full"><label class="flabel">Assign To Employee</label><select class="finput" id="mEmpId">${eOpts}</select></div>
       <div class="fgroup full" style="margin-top:4px"><div style="font-size:11px;font-weight:700;color:#059669;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">🔄 Trade-In Laptop</div></div>
       <div class="fgroup"><label class="flabel">Trade-In Brand</label><select class="finput" id="mTBrand">${bOpts}</select></div>
-      <div class="fgroup"><label class="flabel">Trade-In Model</label><input class="finput" id="mTModel" value="${tl.model||''}"></div>
+      <div class="fgroup"><label class="flabel">Trade-In Model</label><input class="finput" id="mTModel" list="mTModelSuggestions" value="${tl.model||''}" autocomplete="off"></div>
+      <datalist id="mTModelSuggestions">${[...new Set(store.trades.map(t=>t.tradedLaptop&&t.tradedLaptop.model).filter(Boolean))].sort().map(m=>`<option value="${m.replace(/"/g,'&quot;')}"></option>`).join('')}</datalist>
       <div class="fgroup"><label class="flabel">Trade-In Serial No.</label><input class="finput" id="mTSerial" value="${tl.serial||''}"></div>
       <div class="fgroup"><label class="flabel">Trade-In Notes</label><input class="finput" id="mTNotes" value="${tl.notes||''}"></div>
     </div>`,
