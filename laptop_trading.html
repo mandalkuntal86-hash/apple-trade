@@ -193,6 +193,8 @@ tr:hover td{background:#f9fafb;}
 .badge-done::before{content:'';width:6px;height:6px;border-radius:50%;background:#059669;display:inline-block;}
 .badge-assigned{display:inline-flex;align-items:center;gap:5px;background:#eff6ff;color:#1a56db;border:1px solid #bfdbfe;border-radius:20px;padding:3px 10px;font-size:12px;font-weight:500;}
 .badge-assigned::before{content:'';width:6px;height:6px;border-radius:50%;background:#1a56db;display:inline-block;}
+.badge-cancelled{display:inline-flex;align-items:center;gap:5px;background:#fef2f2;color:#dc2626;border:1px solid #fecaca;border-radius:20px;padding:3px 10px;font-size:12px;font-weight:500;}
+.badge-cancelled::before{content:'';width:6px;height:6px;border-radius:50%;background:#dc2626;display:inline-block;}
 .badge-traded{display:inline-flex;align-items:center;gap:5px;background:#eff6ff;color:#1a56db;border:1px solid #bfdbfe;border-radius:20px;padding:3px 10px;font-size:12px;font-weight:600;}
 .badge-traded::before{content:'';width:6px;height:6px;border-radius:50%;background:#1a56db;display:inline-block;}
 .badge-payment{display:inline-flex;align-items:center;gap:5px;background:#ecfdf5;color:#059669;border:1px solid #a7f3d0;border-radius:20px;padding:3px 10px;font-size:12px;font-weight:600;}
@@ -684,7 +686,8 @@ function _startApp(){
 // Load from Firestore if available, else localStorage
 let store = (window._fbInitialData) ||
             JSON.parse(localStorage.getItem('ltpStore')||'null') ||
-            {employees:[],items:[],trades:[],tradeCounter:0};
+            {employees:[],items:[],trades:[],tradeCounter:0,cancellations:[]};
+if(!store.cancellations) store.cancellations=[];
 _storeRef = store; // expose employees list to doLogin()
 _appReady = true;
 
@@ -868,6 +871,7 @@ function importData(e){
     try{
       const data=JSON.parse(ev.target.result);
       if(!data.items||!data.trades){alert('Invalid backup file.');return;}
+      if(!data.cancellations) data.cancellations=[];
       store=data; save();
       alert('✅ Data imported successfully! '+data.items.length+' items, '+data.trades.length+' trades.');
       showPage('dashboard');
@@ -878,7 +882,7 @@ function importData(e){
 function clearAllData(){
   if(!confirm('⚠️ This will delete ALL data permanently. Are you sure?'))return;
   if(!confirm('Last warning — this cannot be undone. Continue?'))return;
-  store={employees:[],items:[],trades:[],tradeCounter:0};
+  store={employees:[],items:[],trades:[],tradeCounter:0,cancellations:[]};
   save(); showPage('dashboard');
   alert('All data cleared.');
 }
@@ -1427,6 +1431,7 @@ function pgStep1(){
   items.forEach(it=>{
     const statusBadge = it.status==='pending'?'<span class="badge-pending">Pending</span>'
       :it.status==='assigned'?'<span class="badge-assigned">Assigned</span>'
+      :it.status==='cancelled'?'<span class="badge-cancelled">✕ Cancelled</span>'
       :'<span class="badge-traded">Traded</span>';
     const priorityBadge = (it.priority && it.status==='pending') ? '<span class="badge-priority">⚡ Priority</span>' : '';
     const actCells=canAct
@@ -1639,6 +1644,10 @@ function pgStep2(){
           +'</div>'
         +'</div>'
       +'</div>'
+      +'<div id="s2cancelBox" style="display:none;margin-top:12px">'
+        +'<button type="button" class="fbtn" style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca" onclick="openCancelTradeModal()">✕ Cancel This Trade (with reason)</button>'
+        +'<div style="font-size:12px;color:#9ca3af;margin-top:6px">This will NOT assign the item to any employee. It will be marked Cancelled and kept in the history below.</div>'
+      +'</div>'
       +'<div id="s2laptopBox" style="display:none;margin-top:18px">'
         +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">'
           +'<div style="width:22px;height:22px;border-radius:50%;background:#059669;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">B</div>'
@@ -1680,7 +1689,8 @@ function pgStep2(){
         +'<thead><tr><th>Trade No.</th><th>Our Item (Brand/Model/Serial)</th><th>Trade-In Laptop</th><th>Employee</th><th>Traded On</th><th>Days Pending</th><th>Status</th>'+actTh+'</tr></thead>'
         +'<tbody>'+aRows+'</tbody>'
       +'</table></div>'
-    +'</div>';
+    +'</div>'
+    +pgCancelledHistory();
 
   setTimeout(()=>{
     const ddOpts=document.getElementById('s2ddOpts');
@@ -1710,15 +1720,40 @@ function pgStep2(){
   return html;
 }
 
+function pgCancelledHistory(){
+  const list=[...(store.cancellations||[])].reverse();
+  let rows='';
+  list.forEach(c=>{
+    rows+='<tr>'
+      +'<td><span class="trade-no">'+(c.tradeNo||'—')+'</span></td>'
+      +'<td><div style="font-weight:600">'+(c.brand||'—')+' '+(c.model||'')+'</div><div style="font-family:monospace;font-size:11px;color:#6b7280">'+(c.serial||'—')+'</div></td>'
+      +'<td style="max-width:280px;white-space:normal">'+(c.reason||'—').replace(/</g,'&lt;')+'</td>'
+      +'<td>'+(c.cancelledBy||'—')+(c.cancelledByRole?' <span style="font-size:11px;color:#9ca3af">('+c.cancelledByRole+')</span>':'')+'</td>'
+      +'<td>'+fmtDate(c.cancelledAt)+'</td>'
+      +'<td><span class="badge-cancelled">✕ Cancelled</span></td>'
+      +'</tr>';
+  });
+  if(!rows) rows='<tr><td colspan="6" class="no-data">No cancelled trades yet.</td></tr>';
+  return '<div class="tpanel">'
+    +'<div class="tpanel-head"><div class="tpanel-title">Cancelled Trades — History <span style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;border-radius:20px;padding:2px 10px;font-size:12px;margin-left:6px">'+list.length+'</span></div></div>'
+    +'<div class="tbl-wrap"><table>'
+      +'<thead><tr><th>Trade No.</th><th>Our Item (Brand/Model/Serial)</th><th>Reason</th><th>Cancelled By</th><th>Cancelled On</th><th>Status</th></tr></thead>'
+      +'<tbody>'+rows+'</tbody>'
+    +'</table></div>'
+  +'</div>';
+}
+
 function onS2TradeSelect(){
   const itemId=document.getElementById('s2tradeNo').value;
   const lb=document.getElementById('s2laptopBox');
   const eb=document.getElementById('s2empBox');
-  if(!itemId){lb.style.display='none';eb.style.display='none';return;}
+  const cb=document.getElementById('s2cancelBox');
+  if(!itemId){lb.style.display='none';eb.style.display='none';if(cb)cb.style.display='none';return;}
   const it=store.items.find(i=>i.id===itemId);
-  if(!it){lb.style.display='none';eb.style.display='none';return;}
+  if(!it){lb.style.display='none';eb.style.display='none';if(cb)cb.style.display='none';return;}
   lb.style.display='block';
   eb.style.display='block';
+  if(cb) cb.style.display = it.status==='pending' ? 'block' : 'none';
   // clear previous inputs
   ['s2tBrand','s2tModel','s2tSerial','s2tNotes'].forEach(id=>{
     const el=document.getElementById(id); if(el) el.value='';
@@ -1754,6 +1789,44 @@ function assignTrade(){if(isGuest()){alert('View Only mode — you cannot assign
   setTimeout(()=>speak('Trade completed successfully!'), 200);
 }
 
+function openCancelTradeModal(){if(isGuest()){alert('View Only mode — you cannot cancel trades. Please login as Admin or Employee.');return;}
+  const itemId=document.getElementById('s2tradeNo').value;
+  if(!itemId){alert('Please select a Trade Number first.');return;}
+  const it=store.items.find(i=>i.id===itemId);
+  if(!it){alert('Item not found.');return;}
+  if(it.status!=='pending'){alert('Only pending trades can be cancelled.');return;}
+  openModal('Cancel Trade — '+(it.tradeNo||''),'This item will stay unassigned and be recorded in the cancellation history',
+    `<p class="modal-warn-text">Cancel trade for <span class="highlight">${it.brand||''} ${it.model||''}</span> · SN: <span class="highlight">${it.serial||''}</span>?<span class="danger-note">⚠ It will NOT be assigned to any employee.</span></p>
+     <div class="fgroup full" style="margin-top:14px"><label class="flabel">Reason for Cancellation *</label><textarea class="finput" id="s2cancelReason" rows="3" placeholder="e.g. Customer withdrew, wrong item registered, duplicate entry..." style="resize:vertical;font-family:'Inter',sans-serif;"></textarea></div>`,
+    `<button class="fbtn fbtn-outline" onclick="closeModal()">Back</button>
+     <button class="fbtn fbtn-danger" onclick="confirmCancelTrade('${itemId}')">✕ Confirm Cancellation</button>`);
+}
+function confirmCancelTrade(itemId){
+  const reasonEl=document.getElementById('s2cancelReason');
+  const reason=reasonEl?reasonEl.value.trim():'';
+  if(!reason){alert('Please enter a reason for cancellation.');return;}
+  const it=store.items.find(i=>i.id===itemId);
+  if(!it){closeModal();return;}
+  if(it.status!=='pending'){alert('This item is no longer pending — it may already have been actioned.');closeModal();showPage('step2');return;}
+  it.status='cancelled';
+  it.priority=false;
+  if(!store.cancellations) store.cancellations=[];
+  store.cancellations.push({
+    id:'CNC'+Date.now(),
+    itemId:it.id,
+    tradeNo:it.tradeNo,
+    serial:it.serial,
+    brand:it.brand,
+    model:it.model,
+    reason,
+    cancelledBy:currentUser.name,
+    cancelledById:currentUser.id,
+    cancelledByRole:currentUser.role,
+    cancelledAt:new Date().toISOString()
+  });
+  save(); closeModal(); showPage('step2');
+  setTimeout(()=>showAlert('s2alert','✕ Trade '+(it.tradeNo||'')+' cancelled. It was not assigned to anyone.'),50);
+}
 function openEditAssign(tradeId){if(!isAdmin()){alert('Admin access required to edit or delete.');return;}
   const tr=store.trades.find(t=>t.id===tradeId); if(!tr)return;
   const tl=tr.tradedLaptop||{};
@@ -2177,6 +2250,8 @@ window.saveEditItem = saveEditItem;
 window.openDelItem = openDelItem;
 window.confirmDelItem = confirmDelItem;
 window.assignTrade = assignTrade;
+window.openCancelTradeModal = openCancelTradeModal;
+window.confirmCancelTrade = confirmCancelTrade;
 window.openEditAssign = openEditAssign;
 window.saveEditAssign = saveEditAssign;
 window.openDelAssign = openDelAssign;
