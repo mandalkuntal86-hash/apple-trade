@@ -4,7 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>LapTrade Pro — Laptop Trading System</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
 <!-- ═══ FIREBASE SDK ═══ -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -104,24 +106,67 @@ window._fb = { fbSave, fbLoad, fbListen, firebaseReady };
 </script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-body{font-family:'Inter',sans-serif;background:#f4f5f7;color:#1a1d23;min-height:100vh;}
+body{font-family:'Plus Jakarta Sans','Inter',sans-serif;background:#0b1326;color:#dae2fd;min-height:100vh;}
 
 /* ── LOGIN ── */
-#loginScreen{position:fixed;inset:0;background:#f4f5f7;display:flex;align-items:center;justify-content:center;z-index:100;}
-.login-card{background:#fff;border:1px solid #e2e5ea;border-radius:12px;padding:44px 40px;width:400px;max-width:95vw;box-shadow:0 4px 24px rgba(0,0,0,.07);}
-.login-brand{display:flex;align-items:center;gap:10px;margin-bottom:6px;}
-.login-brand-icon{width:36px;height:36px;background:#1a56db;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px;font-weight:700;}
-.login-brand-name{font-size:20px;font-weight:700;color:#1a1d23;}
-.login-tagline{font-size:13px;color:#6b7280;margin-bottom:32px;}
-.login-role-tabs{display:flex;background:#f4f5f7;border-radius:8px;padding:3px;gap:3px;margin-bottom:24px;}
-.role-tab{flex:1;padding:8px;border:none;background:transparent;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;color:#6b7280;transition:all .15s;}
-.role-tab.active{background:#fff;color:#1a1d23;box-shadow:0 1px 4px rgba(0,0,0,.1);}
-.lbl{font-size:12px;font-weight:600;color:#374151;margin-bottom:6px;display:block;}
-.linput{width:100%;border:1px solid #d1d5db;border-radius:8px;padding:10px 14px;font-size:14px;color:#1a1d23;margin-bottom:16px;outline:none;transition:border-color .15s;font-family:'Inter',sans-serif;}
-.linput:focus{border-color:#1a56db;box-shadow:0 0 0 3px rgba(26,86,219,.1);}
-.lbtn{width:100%;background:#1a56db;color:#fff;border:none;border-radius:8px;padding:12px;font-size:14px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;transition:background .15s;}
-.lbtn:hover{background:#1648c0;}
-.lerr{color:#dc2626;font-size:13px;margin-top:10px;display:none;}
+#loginScreen{position:fixed;inset:0;background:radial-gradient(circle at top, rgba(99,102,241,.18), transparent 35%), linear-gradient(180deg, #0b1326 0%, #0d152a 100%);display:flex;align-items:center;justify-content:center;z-index:100;overflow:hidden;}
+#loginScreen::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 50% 15%, rgba(124,58,237,.18), transparent 28%), radial-gradient(circle at 25% 80%, rgba(6,182,212,.12), transparent 22%);pointer-events:none;}
+.login-card{position:relative;z-index:1;background:rgba(23,31,51,.78);border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:28px 24px 22px;width:100%;max-width:420px;box-shadow:0 24px 70px rgba(2,6,23,.5), inset 0 1px 0 rgba(255,255,255,.08);backdrop-filter:blur(18px);}
+.login-header{display:flex;align-items:center;justify-content:center;position:relative;}
+.login-brand-wrap{position:relative;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;}
+.login-brand-icon{position:relative;width:84px;height:84px;border-radius:18px;background:rgba(255,255,255,.05);display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.1);box-shadow:0 16px 28px rgba(23,30,51,.7);overflow:hidden;}
+.login-brand-icon img{width:100%;height:100%;object-fit:cover;display:block;}
+.login-brand-check{position:absolute;right:-2px;bottom:-2px;width:26px;height:26px;border-radius:50%;background:#131b2e;border:2px solid rgba(255,255,255,.06);display:flex;align-items:center;justify-content:center;box-shadow:0 6px 18px rgba(26,86,219,.4);}
+.login-brand-check .material-symbols-outlined{font-size:14px;color:#4cd7f6;}
+.login-brand-name{font-size:28px;font-weight:700;color:#dae2fd;letter-spacing:-0.03em;line-height:1.2;margin-top:2px;}
+.login-tagline{font-size:14px;color:#c7c4d7;text-align:center;display:block;margin-top:3px;}
+.login-form{margin-top:24px;display:flex;flex-direction:column;gap:14px;}
+.login-field{display:flex;flex-direction:column;gap:6px;}
+.input-label{display:flex;align-items:center;justify-content:space-between;font-size:14px;font-weight:600;color:#c7c4d7;letter-spacing:0.01em;}
+.input-verified{font-size:11px;font-weight:600;color:#4cd7f6;text-transform:uppercase;letter-spacing:0.05em;display:none;}
+.input-verified.visible{display:inline-block;}
+.input-wrap{display:flex;align-items:center;background:rgba(6,14,32,.7);border:1px solid rgba(255,255,255,.08);border-radius:14px;box-shadow:inset 0 2px 4px rgba(0,0,0,.35);transition:border-color .2s, box-shadow .2s, background .2s;}
+.input-wrap:focus-within{border-color:rgba(192,193,255,.9);box-shadow:0 0 0 3px rgba(99,102,241,.18), inset 0 2px 4px rgba(0,0,0,.35);background:rgba(19,27,46,.9);}
+.input-icon{display:flex;align-items:center;justify-content:center;width:48px;color:#908fa0;padding-left:12px;flex-shrink:0;}
+.input-icon .material-symbols-outlined{font-size:20px;}
+.linput{flex:1;width:100%;background:transparent;border:none;color:#dae2fd;font-size:14px;line-height:20px;padding:16px 14px 16px 10px;outline:none;font-family:'Plus Jakarta Sans','Inter',sans-serif;}
+.linput::placeholder{color:#908fa0;}
+.password-toggle{display:flex;align-items:center;justify-content:center;width:46px;height:52px;background:transparent;border:none;color:#908fa0;cursor:pointer;margin-right:2px;}
+.password-toggle:hover{color:#dae2fd;}
+.password-toggle .material-symbols-outlined{font-size:20px;}
+.login-utility{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-top:4px;}
+.remember-wrap{display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none;}
+.remember-wrap input{position:absolute;opacity:0;pointer-events:none;}
+.remember-box{width:18px;height:18px;border-radius:7px;background:#2d3449;border:1px solid rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;transition:all .2s;}
+.remember-wrap input:checked + .remember-box{background:#8083ff;border-color:#8083ff;box-shadow:0 0 0 3px rgba(128,131,255,.18);}
+.remember-wrap input:checked + .remember-box .material-symbols-outlined{opacity:1;transform:scale(1);}
+.remember-box .material-symbols-outlined{font-size:14px;color:#0d0096;opacity:0;transform:scale(.7);transition:all .15s ease;}
+.remember-label{font-size:14px;font-weight:600;color:#c7c4d7;}
+.forgot-link{border:none;background:none;color:#d0bcff;font-size:14px;font-weight:600;cursor:pointer;font-family:'Plus Jakarta Sans','Inter',sans-serif;}
+.forgot-link:hover{color:#c0c1ff;text-decoration:underline;}
+.primary-btn{margin-top:4px;width:100%;height:54px;border:none;border-radius:14px;background:linear-gradient(90deg, #8083ff 0%, #c0c1ff 48%, #d0bcff 100%);color:#1000a9;font-size:14px;font-weight:700;letter-spacing:0.01em;display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;box-shadow:0 12px 24px rgba(128,131,255,.28);transition:transform .12s ease, filter .12s ease;}
+.primary-btn:hover{filter:brightness(1.04);} 
+.primary-btn:active{transform:scale(.985);} 
+.primary-btn .material-symbols-outlined{font-size:20px;}
+.biometric-btn{margin-top:2px;width:100%;height:52px;border:none;border-radius:14px;background:rgba(34,42,61,.9);color:#dae2fd;font-size:14px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:10px;cursor:pointer;border:1px solid rgba(255,255,255,.06);transition:background .15s ease, transform .12s ease;}
+.biometric-btn:hover{background:rgba(49,57,77,.95);}
+.biometric-btn:active{transform:scale(.99);}
+.biometric-btn .material-symbols-outlined{font-size:20px;color:#4cd7f6;}
+.divider{display:flex;align-items:center;gap:16px;margin:6px 0 2px;}
+.divider::before,.divider::after{content:"";flex:1;height:1px;background:rgba(199,196,215,.18);}
+.divider span{font-size:11px;font-weight:600;color:#908fa0;letter-spacing:0.08em;text-transform:uppercase;}
+.social-grid{display:grid;grid-template-columns:repeat(2, minmax(0, 1fr));gap:10px;}
+.social-btn{height:50px;border:none;border-radius:12px;background:rgba(34,42,61,.85);border:1px solid rgba(255,255,255,.06);display:flex;align-items:center;justify-content:center;gap:10px;color:#dae2fd;font-size:14px;font-weight:600;cursor:pointer;transition:background .15s ease, transform .12s ease;}
+.social-btn:hover{background:rgba(49,57,77,.95);} 
+.social-btn:active{transform:scale(.98);} 
+.social-btn svg{display:block;}
+.signup-row{display:flex;justify-content:center;align-items:center;gap:6px;margin-top:10px;flex-wrap:wrap;}
+.signup-row span{font-size:14px;color:#c7c4d7;}
+.signup-row button{border:none;background:none;color:#c0c1ff;font-size:14px;font-weight:700;cursor:pointer;padding:0;}
+.signup-row button:hover{text-decoration:underline;}
+.footer-security{display:flex;align-items:center;justify-content:center;gap:8px;color:#908fa0;font-size:11px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;margin-top:14px;}
+.footer-security .material-symbols-outlined{font-size:16px;color:#4cd7f6;}
+.lerr{color:#ffb4ab;font-size:13px;margin-top:10px;display:none;padding:8px 10px;border-radius:10px;background:rgba(147,0,10,.18);border:1px solid rgba(255,180,171,.18);text-align:center;}
 
 /* ── LAYOUT ── */
 #app{display:none;min-height:100vh;}
@@ -486,26 +531,93 @@ tr:hover td{background:#f9fafb;}
 <!-- LOGIN -->
 <div id="loginScreen">
   <div class="login-card">
-    <div class="login-brand">
-      <div class="login-brand-icon">L</div>
-      <div class="login-brand-name">LapTrade Pro</div>
+    <div class="login-header">
+      <div class="login-brand-wrap">
+        <div class="login-brand-icon">
+          <img alt="Aura Vault Brand Icon" src="https://lh3.googleusercontent.com/aida/AEtjO1WNJw0mIJZGGb9y8P0PLwekD5qN2YMlogmUXO0eDPXtvs73dxLObcZXdDvpG4C5TvWVBxA0gGhvCQ-byelPhYFwU0ozw81lOnguEJt4CNxHgczSgUzdiIiwXz96TSwqJrXPOMi0WKUdY7wgk-ilz55yj0frV0NCCYsO8dOBAFmgYxdT2SQzZOefg2sUkI0z1NIh0EwtZC9DbpG9taYNTiwTj5RJhQdzh0JkqiUYUo7u">
+          <div class="login-brand-check"><span class="material-symbols-outlined">verified_user</span></div>
+        </div>
+        <div class="login-brand-name">Aura Vault</div>
+        <span class="login-tagline">Welcome back! Sign in to continue</span>
+      </div>
     </div>
-    <div class="login-tagline">Laptop Trading Management System</div>
-    <div class="login-role-tabs">
-      <button class="role-tab active" onclick="setRole('admin')">🔐 Admin</button>
-      <button class="role-tab" onclick="setRole('employee')">👤 Employee</button>
-      <button class="role-tab" onclick="setRole('guest')">👁 View Only</button>
+
+    <div class="login-form">
+      <div class="login-field" id="loginFieldId">
+        <label class="input-label" for="loginId">
+          <span>Email Address</span>
+          <span class="input-verified" id="valid-indicator">Verified Format</span>
+        </label>
+        <div class="input-wrap">
+          <div class="input-icon"><span class="material-symbols-outlined">alternate_email</span></div>
+          <input class="linput" id="loginId" type="email" placeholder="name@example.com" autocomplete="email">
+        </div>
+      </div>
+
+      <div class="login-field" id="loginFieldPw">
+        <label class="input-label" for="loginPass">
+          <span>Master Key / Password</span>
+        </label>
+        <div class="input-wrap">
+          <div class="input-icon"><span class="material-symbols-outlined">lock</span></div>
+          <input class="linput" id="loginPass" type="password" placeholder="••••••••••••" autocomplete="current-password">
+          <button class="password-toggle" id="togglePasswordBtn" type="button" aria-label="Show or hide password">
+            <span class="material-symbols-outlined" id="passwordEyeIcon">visibility</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="login-utility">
+        <label class="remember-wrap">
+          <input type="checkbox" checked>
+          <span class="remember-box"><span class="material-symbols-outlined">check</span></span>
+          <span class="remember-label">Remember me</span>
+        </label>
+        <button class="forgot-link" type="button">Forgot password?</button>
+      </div>
+
+      <button class="primary-btn" type="button" onclick="doLogin()">
+        <span>Sign In to Vault</span>
+        <span class="material-symbols-outlined">arrow_forward</span>
+      </button>
+
+      <button class="biometric-btn" type="button" id="biometricTrigger">
+        <span class="material-symbols-outlined">fingerprint</span>
+        <span>Sign in with Biometrics</span>
+      </button>
+
+      <div class="divider"><span>Or continue with</span></div>
+
+      <div class="social-grid">
+        <button class="social-btn" type="button" aria-label="Sign in with Apple">
+          <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+            <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.88c.62-.75 1.04-1.8.93-2.88-.9.04-1.99.6-2.63 1.35-.57.65-1.07 1.72-.94 2.76 1.01.08 2.02-.48 2.64-1.23z" fill="currentColor"></path>
+          </svg>
+          <span>Apple</span>
+        </button>
+        <button class="social-btn" type="button" aria-label="Sign in with Google">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+            <path d="M12 5c1.56 0 2.96.54 4.07 1.6l3.05-3.05C17.27 1.7 14.81 1 12 1 7.42 1 3.53 3.59 1.63 7.37l3.69 2.86C6.2 7.48 8.85 5 12 5z" fill="#EA4335"></path>
+            <path d="M23.49 12.27c0-.79-.07-1.54-.19-2.27H12v4.51h6.47c-.29 1.48-1.14 2.73-2.4 3.58l3.7 2.87c2.16-1.99 3.72-4.92 3.72-8.69z" fill="#4285F4"></path>
+            <path d="M5.32 14.77c-.24-.71-.37-1.47-.37-2.27s.13-1.56.37-2.27L1.63 7.37C.59 9.44 0 11.66 0 12s.59 2.56 1.63 4.63l3.69-2.86z" fill="#FBBC05"></path>
+            <path d="M12 23c3.24 0 5.95-1.08 7.93-2.91l-3.7-2.87c-1.08.72-2.45 1.16-4.23 1.16-3.15 0-5.8-2.48-6.68-5.23L1.63 16.63C3.53 20.41 7.42 23 12 23z" fill="#34A853"></path>
+          </svg>
+          <span>Google</span>
+        </button>
+      </div>
+
+      <div class="signup-row">
+        <span>Don't have an account?</span>
+        <button type="button">Create Account</button>
+      </div>
+
+      <div class="footer-security">
+        <span class="material-symbols-outlined">shield_lock</span>
+        <span>256-bit End-to-End Encryption</span>
+      </div>
+
+      <div class="lerr" id="loginErr">Invalid credentials. Please try again.</div>
     </div>
-    <div class="login-field-wrap" id="loginFieldId">
-      <label class="lbl">User ID</label>
-      <input class="linput" id="loginId" type="text" placeholder="Enter your ID" autocomplete="off">
-    </div>
-    <div class="login-field-wrap" id="loginFieldPw">
-      <label class="lbl">Password</label>
-      <input class="linput" id="loginPass" type="password" placeholder="Enter password">
-    </div>
-    <button class="lbtn" onclick="doLogin()">Sign In →</button>
-    <div class="lerr" id="loginErr">Invalid credentials. Please try again.</div>
   </div>
 </div>
 
@@ -666,7 +778,41 @@ let _storeRef = null;
 function _store(){ return _storeRef ? _storeRef.employees : []; }
 
 document.addEventListener('DOMContentLoaded', () => {
-  document.getElementById('loginPass').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+  const idInput = document.getElementById('loginId');
+  const passInput = document.getElementById('loginPass');
+  const validIndicator = document.getElementById('valid-indicator');
+  const togglePasswordBtn = document.getElementById('togglePasswordBtn');
+  const passwordEyeIcon = document.getElementById('passwordEyeIcon');
+  const biometricTrigger = document.getElementById('biometricTrigger');
+
+  if (passInput) {
+    passInput.addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+  }
+
+  if (idInput && validIndicator) {
+    const validateEmail = () => {
+      const value = idInput.value.trim();
+      const isValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+      validIndicator.classList.toggle('visible', !!value && isValid);
+    };
+    idInput.addEventListener('input', validateEmail);
+    validateEmail();
+  }
+
+  if (togglePasswordBtn && passInput && passwordEyeIcon) {
+    togglePasswordBtn.addEventListener('click', () => {
+      const isPassword = passInput.getAttribute('type') === 'password';
+      passInput.setAttribute('type', isPassword ? 'text' : 'password');
+      passwordEyeIcon.textContent = isPassword ? 'visibility_off' : 'visibility';
+    });
+  }
+
+  if (biometricTrigger) {
+    biometricTrigger.addEventListener('click', () => {
+      biometricTrigger.style.opacity = '0.72';
+      setTimeout(() => biometricTrigger.style.opacity = '1', 400);
+    });
+  }
 });
 
 // ── Wait for Firebase before booting app logic ──
